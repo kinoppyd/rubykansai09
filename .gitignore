@@ -1,0 +1,56 @@
+# OS and editor files
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+
+# Environment and local secrets
+.env
+.env.*
+!.env.example
+
+# Ruby / Bundler
+.bundle/
+vendor/bundle/
+log/
+tmp/
+coverage/
+.yardoc/
+doc/
+rdoc/
+pkg/
+*.gem
+*.rbc
+.byebug_history
+.rspec_status
+
+# Native extension build output
+mkmf.log
+*.o
+*.obj
+*.so
+*.bundle
+*.dylib
+*.a
+
+# PicoRuby / RP2040 / RP2350 build output
+build/
+build-*/
+*.uf2
+*.elf
+*.bin
+*.hex
+*.map
+*.lst
+*.dis
+*.d
+*.su
+
+# CMake-generated files
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+compile_commands.json
