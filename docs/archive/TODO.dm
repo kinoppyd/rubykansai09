@@ -1,0 +1,100 @@
+# Archived TODO
+
+## 2026-06-14 22:28:44 JST
+
+Resolved by:
+
+- Added `lib/ble_transport.rb`
+- Added `lib/ble_csc_service.rb`
+- Added `lib/mpu_6050_ble_csc.rb`
+- Added `test/ble_csc_service_test.rb`
+- Verified PicoRuby BLE API availability from the official `picoruby/picoruby` repository cloned to `/private/tmp/picoruby-inspect`
+- Ran `ruby -c` on new libraries
+- Ran `ruby -Ilib test/ble_csc_service_test.rb`
+
+Completed TODO items:
+
+- [x] PicoRuby firmware で利用可能な BLE API を確認する。
+  - [x] GATT server を作れるか。
+  - [x] Advertising data / scan response を設定できるか。
+  - [x] Characteristic notification を送れるか。
+  - [x] CCCD write を受け取れるか。
+  - [x] Write request を扱えるか。
+  - [x] Indication は `picoruby-ble` の Ruby API では未公開と判断し、今回の CSCS 実装では使わない方針にした。
+- [x] PicoRuby だけで足りない場合の native bridge 方針を決める。
+  - [x] CSCS の初期実装では native bridge なし。PicoRuby の `picoruby-ble` を使う。
+  - [x] SC Control Point / indication が必要になった場合のみ native bridge を再検討する。
+- [x] BLE の最初の互換ターゲットを決める。
+  - [x] CSCS combined speed/cadence を主対象にし、speed-only / cadence-only も同じ encoder で扱う。
+- [x] `lib/ble_transport.rb` を作る。
+- [x] BLE stack の違いを吸収する最小 interface を定義する。
+  - [x] `start_advertising(name:, services:, data: nil)`
+  - [x] `stop_advertising`
+  - [x] `add_service(uuid)`
+  - [x] `add_characteristic(service, uuid:, properties:, permissions:, value: nil)`
+  - [x] `notify(characteristic, bytes)`
+  - [x] `indicate(characteristic, bytes)` は fake で実装し、PicoRuby adapter では unsupported として明示的に例外化した。
+  - [x] `on_write(characteristic) { |bytes| ... }`
+  - [x] `connected?`
+- [x] BLE API が未実装でも host-side test ができる fake transport を用意する。
+- [x] byte string 生成を Ruby/PicoRuby の両方で壊れないように扱う。
+- [x] Little-endian encoder helper を用意する。
+  - [x] `u8`
+  - [x] `u16_le`
+  - [x] `s16_le`
+  - [x] `u32_le`
+- [x] `lib/ble_csc_service.rb` を作る。
+- [x] GATT service UUID `0x1816` を advertise する。
+- [x] CSC Measurement characteristic `0x2A5B` を `Notify` で追加する。
+- [x] CSC Feature characteristic `0x2A5C` を `Read` で追加する。
+- [x] Sensor Location characteristic `0x2A5D` を必要に応じて追加する。
+- [x] SC Control Point characteristic `0x2A55` は後回しにし、必要になったら `Write + Indicate` で追加する方針にした。
+- [x] CSC Feature bit を実装する。
+  - [x] Wheel Revolution Data Supported
+  - [x] Crank Revolution Data Supported
+  - [x] Multiple Sensor Locations Supported
+- [x] CSC Measurement payload encoder を実装する。
+  - [x] speed-only: flags `0x01`, cumulative wheel revolutions, last wheel event time
+  - [x] cadence-only: flags `0x02`, cumulative crank revolutions, last crank event time
+  - [x] combined: flags `0x03`, wheel pair, crank pair
+- [x] `RotationEvent#time_ms` を BLE CSCS event time に変換する。
+  - [x] `ticks = (time_ms * 1024 / 1000) % 65536`
+  - [x] wheel event time と crank event time を独立管理する
+- [x] notification interval を決める。
+  - [x] 基本は 1 Hz。
+  - [x] 回転イベント発生直後に即時 notify できる API にした。
+  - [x] 停止中も同じ counter/event time で周期 notify できる API にした。
+- [x] サイコン側が wheel circumference を持つ前提で、BLE では周長を送らない。
+- [x] `MPU6050::RotationDetector` と BLE CSCS encoder を接続する module を作る。
+  - [x] `lib/mpu_6050_ble_csc.rb`
+- [x] wheel detector と crank detector を独立して持てる API にする。
+- [x] mounting axis と direction を設定できるようにする。
+  - [x] wheel axis
+  - [x] wheel direction
+  - [x] crank axis
+  - [x] crank direction
+- [x] false positive を抑える設定を外から渡せるようにする。
+  - [x] `alpha`
+  - [x] `min_period_ms`
+  - [x] `max_period_ms`
+  - [x] `gyro_deadband_dps`
+- [x] sampling loop の責務を分ける。
+  - [x] MPU-6050 sampling
+  - [x] rotation detection
+  - [x] BLE payload update
+  - [x] notification scheduling
+- [x] I2C read failure と BLE disconnect を処理する。
+  - [x] `MPU6050BLECSC#tick` は例外を `last_error` に保存して `false` を返す。
+  - [x] BLE disconnect 状態は transport に閉じ込め、fake/PicoRuby adapter から `connected?` で見られる。
+- [x] 接続前も回転 counter を継続するか、接続時に reset するか決める。
+  - [x] 接続前も counter は継続する方針にした。
+- [x] Battery Service `0x180F` を追加する。
+- [x] Battery Level characteristic `0x2A19` を `Read + Notify` で公開する。
+- [x] Device Information Service `0x180A` を追加する。
+- [x] Manufacturer Name, Model Number, Firmware Revision を公開する。
+- [x] CSC Measurement の payload を byte-level で確認する。
+- [x] Public API proposal を実装する。
+  - [x] `MPU6050BLECSC.new(...)`
+  - [x] `sensor.start`
+  - [x] `sensor.tick`
+  - [x] `sensor.run`
