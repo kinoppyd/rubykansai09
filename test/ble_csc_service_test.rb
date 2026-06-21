@@ -1,17 +1,19 @@
 require "minitest/autorun"
+require "ble_transport/fake"
 require "ble_csc_service"
 require "mpu_6050_ble_csc"
+require "mpu_6050/rotation_detector"
 
 class BLECSCServiceTest < Minitest::Test
   def test_little_endian_helpers
-    assert_equal [0x34, 0x12], BLETransport::Bytes.u16_le(0x1234).bytes
-    assert_equal [0xff, 0xff], BLETransport::Bytes.s16_le(-1).bytes
-    assert_equal [0x78, 0x56, 0x34, 0x12], BLETransport::Bytes.u32_le(0x12345678).bytes
+    assert_equal [0x34, 0x12], BLETransport.u16_le(0x1234).bytes
+    assert_equal [0xff, 0xff], BLETransport.s16_le(-1).bytes
+    assert_equal [0x78, 0x56, 0x34, 0x12], BLETransport.u32_le(0x12345678).bytes
   end
 
   def test_speed_only_payload
     transport = BLETransport::Fake.new
-    service = BLECSCService.new(:transport => transport, :wheel => true, :crank => false)
+    service = BLECSCService.new(transport, "PicoRuby CSC", true, false)
     service.start
     service.update_wheel(3, 1_000)
 
@@ -20,7 +22,7 @@ class BLECSCServiceTest < Minitest::Test
 
   def test_cadence_only_payload
     transport = BLETransport::Fake.new
-    service = BLECSCService.new(:transport => transport, :wheel => false, :crank => true)
+    service = BLECSCService.new(transport, "PicoRuby CSC", false, true)
     service.start
     service.update_crank(7, 1_500)
 
@@ -29,7 +31,7 @@ class BLECSCServiceTest < Minitest::Test
 
   def test_combined_payload_and_notification
     transport = BLETransport::Fake.new
-    service = BLECSCService.new(:transport => transport, :wheel => true, :crank => true)
+    service = BLECSCService.new(transport)
     service.start
     service.update_wheel(3, 1_000)
     service.update_crank(7, 1_500)
@@ -41,7 +43,7 @@ class BLECSCServiceTest < Minitest::Test
 
   def test_notify_if_due
     transport = BLETransport::Fake.new
-    service = BLECSCService.new(:transport => transport, :notify_interval_ms => 1_000)
+    service = BLECSCService.new(transport, "PicoRuby CSC", true, true, nil, 1_000)
     service.start
 
     assert_equal true, service.notify_if_due(0)
@@ -54,11 +56,12 @@ class BLECSCServiceTest < Minitest::Test
     mpu = SyntheticMPU.new
     transport = BLETransport::Fake.new
     sensor = MPU6050BLECSC.new(
-      :mpu => mpu,
-      :ble => transport,
-      :wheel => { :axis => :z, :alpha => 0.0, :min_period_ms => 1 },
-      :crank => false,
-      :immediate_notify => true
+      mpu,
+      transport,
+      "PicoRuby CSC",
+      :z,
+      nil,
+      1
     )
     sensor.start
 
@@ -73,28 +76,31 @@ class BLECSCServiceTest < Minitest::Test
   class SyntheticMPU
     def initialize
       @index = 0
+      @time_ms = nil
+      @dt = 0.1
+      @accel_x = 0.0
+      @accel_y = 1.0
+      @accel_z = 0.0
+      @gyro_x = 0.0
+      @gyro_y = 0.0
+      @gyro_z = 0.0
     end
+
+    attr_reader :time_ms, :dt
+    attr_reader :accel_x, :accel_y, :accel_z
+    attr_reader :gyro_x, :gyro_y, :gyro_z
 
     def sample(time_ms)
       theta = 2.0 * Math::PI * @index / 40.0
       @index += 1
-      MPU6050::Sample.new(
-        :time_ms => time_ms,
-        :dt => 0.1,
-        :accel => MPU6050::Vector3.new(Math.sin(theta), Math.cos(theta), 0.0),
-        :gyro => MPU6050::Vector3.new(0.0, 0.0, 0.0),
-        :temperature_c => 0.0,
-        :roll => 0.0,
-        :pitch => 0.0,
-        :yaw => 0.0,
-        :raw_accel => nil,
-        :raw_gyro => nil,
-        :raw_temperature => nil
-      )
+      @time_ms = time_ms
+      @accel_x = Math.sin(theta)
+      @accel_y = Math.cos(theta)
+      self
     end
 
-    def rotation_detector(axis, options)
-      MPU6050::RotationDetector.new(axis, options)
+    def rotation_detector(axis, min_ms, direction = 0)
+      MPU6050::RotationDetector.new(axis, min_ms, direction)
     end
   end
 end
