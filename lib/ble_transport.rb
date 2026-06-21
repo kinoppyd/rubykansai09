@@ -1,4 +1,13 @@
-# Minimal byte helpers and constants for BLE cycling sensors.
+# Usage:
+#   require "ble_transport"
+#   payload = BLETransport.bytes(11)
+#   BLETransport.put_u8(payload, 0, 0x03)
+#   BLETransport.put_u32(payload, 1, wheel_revolutions)
+#   BLETransport.put_u16(payload, 5, BLECSCService.event_time_ticks(time_ms))
+#
+# Provides BLE constants and little-endian byte helpers used by
+# BLECSCService and transport implementations. Methods mutate existing
+# strings where possible to avoid extra allocation on PicoRuby.
 
 module BLETransport
   READ = 2

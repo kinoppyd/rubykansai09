@@ -1,3 +1,16 @@
+# Usage:
+#   require "mpu_6050"
+#   require "mpu_6050/rotation_detector"
+#   mpu = MPU6050.new(i2c)
+#   detector = MPU6050::RotationDetector.new(:z, 120, 1)
+#   loop do
+#     event = detector.update(mpu.sample)
+#     puts event.count if event
+#   end
+#
+# Detects full rotations from the accelerometer phase around one axis. The
+# sample object must provide time_ms and accel_x/accel_y/accel_z readers.
+
 class MPU6050
   class RotationDetector
     def initialize(axis = :z, min_ms = 120, direction = 0)

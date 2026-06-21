@@ -1,3 +1,19 @@
+# Usage:
+#   require "ble_transport/picoruby_peripheral"
+#   require "mpu_6050_ble_csc"
+#   i2c = I2C.new(unit: :RP2040_I2C0, frequency: 400_000, sda_pin: 4, scl_pin: 5)
+#   mpu = MPU6050.new(i2c, :gyro_range_dps => 500, :sample_interval_ms => 10)
+#   ble = BLETransport::PicoRubyPeripheral.new
+#   sensor = MPU6050BLECSC.new(mpu, ble, "PicoRuby CSC", :z, :x)
+#   sensor.start
+#   loop do
+#     sensor.tick
+#     ble.poll
+#   end
+#
+# Connects MPU6050 rotation events to the BLE Cycling Speed and Cadence
+# service. Pass nil for wheel_axis or crank_axis to disable that channel.
+
 require "mpu_6050"
 require "mpu_6050/rotation_detector"
 require "ble_csc_service"

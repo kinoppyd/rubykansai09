@@ -1,3 +1,19 @@
+# Usage:
+#   require "ble_transport/picoruby_peripheral"
+#   require "mpu_6050_ble_csc"
+#   ble = BLETransport::PicoRubyPeripheral.new
+#   sensor = MPU6050BLECSC.new(mpu, ble, "PicoRuby CSC", :z, :x)
+#   sensor.start
+#   ble.start(1000)
+#   loop do
+#     sensor.tick
+#     ble.poll
+#   end
+#
+# PicoRuby BLE peripheral transport for the Cycling Speed and Cadence
+# service. Use this only on a PicoRuby/R2P2 build that includes the "ble"
+# gem and a supported BLE board such as Pico W or Pico 2 W.
+
 require "ble"
 require "ble_transport"
 

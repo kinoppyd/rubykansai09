@@ -1,3 +1,16 @@
+# Usage:
+#   require "ble_transport/picoruby_peripheral"
+#   require "ble_csc_service"
+#   ble = BLETransport::PicoRubyPeripheral.new
+#   service = BLECSCService.new(ble, "PicoRuby CSC", true, true)
+#   service.start
+#   service.update_wheel(wheel_count, time_ms)
+#   service.update_crank(crank_count, time_ms)
+#   service.notify_if_due(time_ms)
+#
+# Builds Bluetooth Cycling Speed and Cadence measurement payloads. The
+# transport object must implement setup_csc, notify, connected?, and poll.
+
 require "ble_transport"
 
 class BLECSCService

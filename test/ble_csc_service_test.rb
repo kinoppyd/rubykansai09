@@ -1,3 +1,9 @@
+# Usage:
+#   ruby -Ilib test/ble_csc_service_test.rb
+#
+# Exercises the public classes with CRuby and Minitest. PicoRuby smoke tests
+# should use simple raise-based scripts instead of requiring Minitest.
+
 require "minitest/autorun"
 require "ble_transport/fake"
 require "ble_csc_service"

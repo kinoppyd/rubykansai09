@@ -1,3 +1,16 @@
+# Usage:
+#   require "ble_transport/fake"
+#   require "ble_csc_service"
+#   transport = BLETransport::Fake.new
+#   service = BLECSCService.new(transport)
+#   service.start
+#   service.update_wheel(1, 1000)
+#   service.notify(1000)
+#   bytes = transport.notifications[0][:bytes]
+#
+# Test transport for BLECSCService. It records setup values and notification
+# payloads without requiring BLE hardware or the PicoRuby BLE runtime.
+
 require "ble_transport"
 
 module BLETransport

@@ -4,13 +4,16 @@
 #   i2c = I2C.new(unit: :RP2040_I2C0, frequency: 400_000, sda_pin: 4, scl_pin: 5)
 #   mpu = MPU6050.new(i2c, :gyro_range_dps => 500, :sample_interval_ms => 10)
 #   mpu.calibrate_gyro
-#   wheel = mpu.rotation_detector(:z, 120)
+#   wheel = mpu.rotation_detector(:z, 120, 1)
 #   loop do
-#     if event = wheel.update(mpu.sample)
-#       puts event.count
-#     end
+#     sample = mpu.sample
+#     event = wheel.update(sample)
+#     puts event.count if event
 #   end
-# Copy both files: `mpu_6050.rb` and `mpu_6050/rotation_detector.rb`.
+#
+# Minimal MPU-6050 driver for PicoRuby. sample returns self and exposes scalar
+# accel_x/accel_y/accel_z and gyro_x/gyro_y/gyro_z readers to avoid allocating
+# arrays or hashes while sampling.
 
 class MPU6050
   def initialize(i2c, o = nil)
