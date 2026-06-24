@@ -5,6 +5,7 @@
 #   detector = MPU6050::RotationDetector.new(:z, 120, 1)
 #   loop do
 #     event = detector.update(mpu.sample_now)
+#     puts detector.delta_angle
 #     puts event.count if event
 #   end
 #
@@ -22,6 +23,10 @@ class MPU6050
       @count = 0
       @time_ms = nil
       @p = nil
+      @phase = nil
+      @delta = 0.0
+      @gyro = 0.0
+      @sat = false
       @sum = 0.0
       @last = nil
     end
@@ -34,12 +39,30 @@ class MPU6050
       @time_ms
     end
 
+    def phase
+      @phase
+    end
+
+    def delta_angle
+      @delta
+    end
+
+    def gyro_dps
+      @gyro
+    end
+
+    def saturated?
+      @sat
+    end
+
     def update(s)
       t = s.time_ms
-      p = accel_saturated_sample?(s) ? nil : accel_phase(s)
+      @sat = accel_saturated_sample?(s)
+      p = @sat ? nil : accel_phase(s)
       ad = 0.0
 
       if p
+        @phase = p
         if @p.nil?
           @p = p
         else
@@ -50,6 +73,7 @@ class MPU6050
 
       d = gyro_delta(s)
       d = ad if d == 0.0
+      @delta = d
       return nil if d == 0.0
       @sum += d
 
@@ -87,20 +111,24 @@ class MPU6050
     end
 
     def gyro_delta(s)
+      g = gyro_value(s)
+      @gyro = g.nil? ? 0.0 : g
       dt = s.dt
       return 0.0 if dt.nil? || dt <= 0.0
-      g =
-        if @a == 0
-          s.gyro_x
-        elsif @a == 1
-          s.gyro_y
-        else
-          s.gyro_z
-        end
       return 0.0 if g.nil?
       ag = g < 0.0 ? -g : g
       return 0.0 if ag < @dead
       g * 0.017453292519943295 * dt
+    end
+
+    def gyro_value(s)
+      if @a == 0
+        s.gyro_x
+      elsif @a == 1
+        s.gyro_y
+      else
+        s.gyro_z
+      end
     end
 
     def accel_saturated_sample?(s)

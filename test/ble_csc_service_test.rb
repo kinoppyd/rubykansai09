@@ -90,6 +90,19 @@ class BLECSCServiceTest < Minitest::Test
     assert_equal 2, detector.count
   end
 
+  def test_rotation_detector_exposes_debug_values
+    mpu = SyntheticGyroMPU.new
+    detector = MPU6050::RotationDetector.new(:z, 120)
+
+    detector.update(mpu.sample(0))
+    detector.update(mpu.sample(100))
+
+    assert_in_delta 0.0, detector.phase, 0.0001
+    assert_in_delta 0.6283, detector.delta_angle, 0.0001
+    assert_equal 360.0, detector.gyro_dps
+    assert_equal false, detector.saturated?
+  end
+
   def test_mpu_6050_defaults_to_wide_motion_ranges
     i2c = FakeI2C.new
     MPU6050.new(i2c)
@@ -124,6 +137,17 @@ class BLECSCServiceTest < Minitest::Test
     end
 
     assert_equal 0, detector.count
+  end
+
+  def test_rotation_detector_reports_saturation
+    mpu = SyntheticSaturatedMPU.new
+    detector = MPU6050::RotationDetector.new(:z, 120)
+
+    detector.update(mpu.sample(0))
+
+    assert_equal true, detector.saturated?
+    assert_nil detector.phase
+    assert_equal 0.0, detector.delta_angle
   end
 
   class FakeI2C
