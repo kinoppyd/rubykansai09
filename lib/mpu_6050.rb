@@ -6,7 +6,7 @@
 #   mpu.calibrate_gyro
 #   wheel = mpu.rotation_detector(:z, 120, 1)
 #   loop do
-#     sample = mpu.sample
+#     sample = mpu.sample_now
 #     event = wheel.update(sample)
 #     puts event.count if event
 #   end
@@ -93,6 +93,10 @@ class MPU6050
     self
   end
 
+  def sample_now
+    sample(real_time_ms)
+  end
+
   def calibrate_gyro(n = 200, wait_ms = 5)
     sx = 0.0
     sy = 0.0
@@ -161,6 +165,14 @@ class MPU6050
 
   def now_ms
     @time_ms ? @time_ms + @si : 0
+  end
+
+  def real_time_ms
+    if Object.const_defined?(:Machine)
+      return Machine.board_millis if Machine.respond_to?(:board_millis)
+      return Machine.uptime_us / 1000 if Machine.respond_to?(:uptime_us)
+    end
+    now_ms
   end
 
   def delay(ms)

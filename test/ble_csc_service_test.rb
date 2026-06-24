@@ -87,6 +87,15 @@ class BLECSCServiceTest < Minitest::Test
     assert_equal [0x68, 0x1C, 24], i2c.writes[4]
   end
 
+  def test_mpu_6050_sample_now_falls_back_to_configured_interval
+    mpu = MPU6050.new(FakeI2C.new)
+
+    mpu.sample_now
+    assert_equal 0, mpu.time_ms
+    mpu.sample_now
+    assert_equal 10, mpu.time_ms
+  end
+
   class FakeI2C
     attr_reader :writes
 
@@ -97,6 +106,14 @@ class BLECSCServiceTest < Minitest::Test
     def write(address, register, value)
       @writes << [address, register, value]
       true
+    end
+
+    def read(_address, length, _register)
+      s = String.new
+      while s.bytesize < length
+        s << 0
+      end
+      s
     end
   end
 

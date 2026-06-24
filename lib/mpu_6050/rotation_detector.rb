@@ -4,7 +4,7 @@
 #   mpu = MPU6050.new(i2c)
 #   detector = MPU6050::RotationDetector.new(:z, 120, 1)
 #   loop do
-#     event = detector.update(mpu.sample)
+#     event = detector.update(mpu.sample_now)
 #     puts event.count if event
 #   end
 #
