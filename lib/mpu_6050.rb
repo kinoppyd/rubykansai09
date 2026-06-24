@@ -34,6 +34,8 @@ class MPU6050
     @gx = 0.0
     @gy = 0.0
     @gz = 0.0
+    @sat = false
+    @sat_raw = opt(o, :accel_saturation_raw, 32000)
     configure(o) if opt(o, :auto_configure, true)
   end
 
@@ -69,6 +71,10 @@ class MPU6050
     @gz
   end
 
+  def accel_saturated?
+    @sat
+  end
+
   def configure(o = nil)
     w(0x6B, 1)
     w(0x19, opt(o, :sample_rate_divider, 7))
@@ -84,9 +90,13 @@ class MPU6050
     @time_ms = t
     @lt = t
     b = @i2c.read(@ad, 14, 0x3B)
-    @ax = i16(b, 0) / @as
-    @ay = i16(b, 2) / @as
-    @az = i16(b, 4) / @as
+    rax = i16(b, 0)
+    ray = i16(b, 2)
+    raz = i16(b, 4)
+    @sat = raw_abs(rax) >= @sat_raw || raw_abs(ray) >= @sat_raw || raw_abs(raz) >= @sat_raw
+    @ax = rax / @as
+    @ay = ray / @as
+    @az = raz / @as
     @gx = i16(b, 8) / @gs - @gox
     @gy = i16(b, 10) / @gs - @goy
     @gz = i16(b, 12) / @gs - @goz
@@ -133,6 +143,10 @@ class MPU6050
     l = b.getbyte(i + 1)
     v = ((h & 255) << 8) | (l & 255)
     v >= 32768 ? v - 65536 : v
+  end
+
+  def raw_abs(v)
+    v < 0 ? -v : v
   end
 
   def accel_scale(r)

@@ -36,17 +36,21 @@ class MPU6050
 
     def update(s)
       t = s.time_ms
-      p = accel_phase(s)
+      p = accel_saturated_sample?(s) ? nil : accel_phase(s)
+      ad = 0.0
 
-      if @p.nil?
-        @p = p
-        return nil
+      if p
+        if @p.nil?
+          @p = p
+        else
+          ad = wrap(p - @p)
+          @p = p
+        end
       end
 
-      ad = wrap(p - @p)
-      @p = p
       d = gyro_delta(s)
       d = ad if d == 0.0
+      return nil if d == 0.0
       @sum += d
 
       if @sum >= 6.0 && (@dir == 0 || @dir == 1)
@@ -97,6 +101,10 @@ class MPU6050
       ag = g < 0.0 ? -g : g
       return 0.0 if ag < @dead
       g * 0.017453292519943295 * dt
+    end
+
+    def accel_saturated_sample?(s)
+      s.respond_to?(:accel_saturated?) && s.accel_saturated?
     end
 
     def wrap(v)

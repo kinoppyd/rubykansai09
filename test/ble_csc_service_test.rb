@@ -107,6 +107,25 @@ class BLECSCServiceTest < Minitest::Test
     assert_equal 10, mpu.time_ms
   end
 
+  def test_mpu_6050_marks_saturated_acceleration
+    mpu = MPU6050.new(SaturatingI2C.new)
+
+    mpu.sample(0)
+
+    assert_equal true, mpu.accel_saturated?
+  end
+
+  def test_rotation_detector_ignores_saturated_accel_without_gyro
+    mpu = SyntheticSaturatedMPU.new
+    detector = MPU6050::RotationDetector.new(:z, 120)
+
+    81.times do |i|
+      detector.update(mpu.sample(i * 100))
+    end
+
+    assert_equal 0, detector.count
+  end
+
   class FakeI2C
     attr_reader :writes
 
@@ -121,6 +140,18 @@ class BLECSCServiceTest < Minitest::Test
 
     def read(_address, length, _register)
       s = String.new
+      while s.bytesize < length
+        s << 0
+      end
+      s
+    end
+  end
+
+  class SaturatingI2C < FakeI2C
+    def read(_address, length, _register)
+      s = String.new
+      s << 0x7f
+      s << 0xff
       while s.bytesize < length
         s << 0
       end
@@ -181,6 +212,12 @@ class BLECSCServiceTest < Minitest::Test
 
     def rotation_detector(axis, min_ms, direction = 0)
       MPU6050::RotationDetector.new(axis, min_ms, direction)
+    end
+  end
+
+  class SyntheticSaturatedMPU < SyntheticMPU
+    def accel_saturated?
+      true
     end
   end
 end
