@@ -79,6 +79,17 @@ class BLECSCServiceTest < Minitest::Test
     assert_equal 2, transport.notifications.last[:bytes].bytes[1]
   end
 
+  def test_rotation_detector_counts_gyro_rotation
+    mpu = SyntheticGyroMPU.new
+    detector = MPU6050::RotationDetector.new(:z, 120)
+
+    22.times do |i|
+      detector.update(mpu.sample(i * 100))
+    end
+
+    assert_equal 2, detector.count
+  end
+
   def test_mpu_6050_defaults_to_wide_motion_ranges
     i2c = FakeI2C.new
     MPU6050.new(i2c)
@@ -114,6 +125,31 @@ class BLECSCServiceTest < Minitest::Test
         s << 0
       end
       s
+    end
+  end
+
+  class SyntheticGyroMPU
+    def initialize
+      @time_ms = nil
+      @last_ms = nil
+      @dt = 0.0
+      @accel_x = 0.0
+      @accel_y = 1.0
+      @accel_z = 0.0
+      @gyro_x = 0.0
+      @gyro_y = 0.0
+      @gyro_z = 360.0
+    end
+
+    attr_reader :time_ms, :dt
+    attr_reader :accel_x, :accel_y, :accel_z
+    attr_reader :gyro_x, :gyro_y, :gyro_z
+
+    def sample(time_ms)
+      @dt = @last_ms ? (time_ms - @last_ms).to_f / 1000.0 : 0.0
+      @time_ms = time_ms
+      @last_ms = time_ms
+      self
     end
   end
 
