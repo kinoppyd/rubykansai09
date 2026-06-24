@@ -79,6 +79,27 @@ class BLECSCServiceTest < Minitest::Test
     assert_equal 2, transport.notifications.last[:bytes].bytes[1]
   end
 
+  def test_mpu_6050_defaults_to_wide_motion_ranges
+    i2c = FakeI2C.new
+    MPU6050.new(i2c)
+
+    assert_equal [0x68, 0x1B, 24], i2c.writes[3]
+    assert_equal [0x68, 0x1C, 24], i2c.writes[4]
+  end
+
+  class FakeI2C
+    attr_reader :writes
+
+    def initialize
+      @writes = []
+    end
+
+    def write(address, register, value)
+      @writes << [address, register, value]
+      true
+    end
+  end
+
   class SyntheticMPU
     def initialize
       @index = 0

@@ -2,7 +2,7 @@
 #   require "mpu_6050"
 #   require "mpu_6050/rotation_detector"
 #   i2c = I2C.new(unit: :RP2040_I2C0, frequency: 400_000, sda_pin: 4, scl_pin: 5)
-#   mpu = MPU6050.new(i2c, :gyro_range_dps => 500, :sample_interval_ms => 10)
+#   mpu = MPU6050.new(i2c)
 #   mpu.calibrate_gyro
 #   wheel = mpu.rotation_detector(:z, 120, 1)
 #   loop do
@@ -19,8 +19,8 @@ class MPU6050
   def initialize(i2c, o = nil)
     @i2c = i2c
     @ad = opt(o, :address, 0x68)
-    @as = accel_scale(opt(o, :accel_range_g, 2))
-    @gs = gyro_scale(opt(o, :gyro_range_dps, 250))
+    @as = accel_scale(opt(o, :accel_range_g, 16))
+    @gs = gyro_scale(opt(o, :gyro_range_dps, 2000))
     @si = opt(o, :sample_interval_ms, 10)
     @gox = 0.0
     @goy = 0.0
