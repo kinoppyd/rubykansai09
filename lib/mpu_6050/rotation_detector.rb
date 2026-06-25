@@ -3,6 +3,7 @@
 #   require "mpu_6050/rotation_detector"
 #   mpu = MPU6050.new(i2c)
 #   detector = MPU6050::RotationDetector.new(:z, 120, 1)
+#   detector.set_max_dt_ms(50)
 #   loop do
 #     event = detector.update(mpu.sample_now)
 #     puts detector.delta_angle
@@ -15,20 +16,39 @@
 
 class MPU6050
   class RotationDetector
-    def initialize(axis = :z, min_ms = 120, direction = 0, gyro_deadband_dps = 3.0)
+    def initialize(axis = :z, min_ms = 120, direction = 0)
       @a = axis == :x || axis == 0 ? 0 : (axis == :y || axis == 1 ? 1 : 2)
       @min = min_ms
       @dir = direction == :positive || direction == 1 ? 1 : (direction == :negative || direction == -1 ? -1 : 0)
-      @dead = gyro_deadband_dps
+      @dead = 3.0
+      @max_dt = 0.25
+      @amin2 = 0.0625
       @count = 0
       @time_ms = nil
       @p = nil
       @phase = nil
+      @phase_ok = false
       @delta = 0.0
       @gyro = 0.0
       @sat = false
+      @dt_skip = false
       @sum = 0.0
       @last = nil
+    end
+
+    def set_gyro_deadband_dps(v)
+      @dead = v
+      self
+    end
+
+    def set_max_dt_ms(v)
+      @max_dt = v ? v / 1000.0 : 0.0
+      self
+    end
+
+    def set_accel_phase_min_g(v)
+      @amin2 = v * v
+      self
     end
 
     def count
@@ -43,8 +63,16 @@ class MPU6050
       @phase
     end
 
+    def phase_valid?
+      @phase_ok
+    end
+
     def delta_angle
       @delta
+    end
+
+    def angle
+      @sum
     end
 
     def gyro_dps
@@ -55,11 +83,23 @@ class MPU6050
       @sat
     end
 
+    def dt_skipped?
+      @dt_skip
+    end
+
     def update(s)
       t = s.time_ms
       @sat = accel_saturated_sample?(s)
-      p = @sat ? nil : accel_phase(s)
+      p = nil
       ad = 0.0
+
+      if !@sat && accel_phase_ready?(s)
+        p = accel_phase(s)
+        @phase_ok = true
+      else
+        @phase_ok = false
+        @p = nil
+      end
 
       if p
         @phase = p
@@ -72,7 +112,7 @@ class MPU6050
       end
 
       d = gyro_delta(s)
-      d = ad if d == 0.0
+      d = ad if d == 0.0 && !@dt_skip
       @delta = d
       return nil if d == 0.0
       @sum += d
@@ -113,8 +153,13 @@ class MPU6050
     def gyro_delta(s)
       g = gyro_value(s)
       @gyro = g.nil? ? 0.0 : g
+      @dt_skip = false
       dt = s.dt
       return 0.0 if dt.nil? || dt <= 0.0
+      if @max_dt > 0.0 && dt > @max_dt
+        @dt_skip = true
+        return 0.0
+      end
       return 0.0 if g.nil?
       ag = g < 0.0 ? -g : g
       return 0.0 if ag < @dead
@@ -129,6 +174,17 @@ class MPU6050
       else
         s.gyro_z
       end
+    end
+
+    def accel_phase_ready?(s)
+      if @a == 0
+        v = s.accel_y * s.accel_y + s.accel_z * s.accel_z
+      elsif @a == 1
+        v = s.accel_z * s.accel_z + s.accel_x * s.accel_x
+      else
+        v = s.accel_x * s.accel_x + s.accel_y * s.accel_y
+      end
+      v >= @amin2
     end
 
     def accel_saturated_sample?(s)

@@ -124,8 +124,12 @@ class MPU6050
     self
   end
 
-  def rotation_detector(axis = :z, min_ms = 120, direction = 0)
-    MPU6050::RotationDetector.new(axis, min_ms, direction)
+  def rotation_detector(axis = :z, min_ms = 120, direction = 0, gyro_deadband_dps = 3.0, max_dt_ms = 250, accel_phase_min_g = 0.25)
+    d = MPU6050::RotationDetector.new(axis, min_ms, direction)
+    d.set_gyro_deadband_dps(gyro_deadband_dps) if d.respond_to?(:set_gyro_deadband_dps)
+    d.set_max_dt_ms(max_dt_ms) if d.respond_to?(:set_max_dt_ms)
+    d.set_accel_phase_min_g(accel_phase_min_g) if d.respond_to?(:set_accel_phase_min_g)
+    d
   end
 
   def opt(o, k, d)

@@ -99,8 +99,25 @@ class BLECSCServiceTest < Minitest::Test
 
     assert_in_delta 0.0, detector.phase, 0.0001
     assert_in_delta 0.6283, detector.delta_angle, 0.0001
+    assert_in_delta 0.6283, detector.angle, 0.0001
     assert_equal 360.0, detector.gyro_dps
     assert_equal false, detector.saturated?
+    assert_equal false, detector.dt_skipped?
+    assert_equal true, detector.phase_valid?
+  end
+
+  def test_rotation_detector_skips_large_dt_samples
+    mpu = SyntheticGyroMPU.new
+    detector = MPU6050::RotationDetector.new(:z, 120, 0)
+    detector.set_max_dt_ms(50)
+
+    detector.update(mpu.sample(0))
+    detector.update(mpu.sample(1_000))
+
+    assert_equal 0, detector.count
+    assert_equal true, detector.dt_skipped?
+    assert_equal 0.0, detector.delta_angle
+    assert_equal 0.0, detector.angle
   end
 
   def test_mpu_6050_defaults_to_wide_motion_ranges
@@ -147,7 +164,20 @@ class BLECSCServiceTest < Minitest::Test
 
     assert_equal true, detector.saturated?
     assert_nil detector.phase
+    assert_equal false, detector.phase_valid?
     assert_equal 0.0, detector.delta_angle
+  end
+
+  def test_rotation_detector_ignores_weak_accel_phase
+    mpu = SyntheticWeakPhaseMPU.new
+    detector = MPU6050::RotationDetector.new(:z, 120)
+
+    81.times do |i|
+      detector.update(mpu.sample(i * 100))
+    end
+
+    assert_equal 0, detector.count
+    assert_equal false, detector.phase_valid?
   end
 
   class FakeI2C
@@ -242,6 +272,18 @@ class BLECSCServiceTest < Minitest::Test
   class SyntheticSaturatedMPU < SyntheticMPU
     def accel_saturated?
       true
+    end
+  end
+
+  class SyntheticWeakPhaseMPU < SyntheticMPU
+    def sample(time_ms)
+      theta = 2.0 * Math::PI * @index / 40.0
+      @index += 1
+      @time_ms = time_ms
+      @accel_x = Math.sin(theta) * 0.05
+      @accel_y = Math.cos(theta) * 0.05
+      @accel_z = -1.0
+      self
     end
   end
 end
