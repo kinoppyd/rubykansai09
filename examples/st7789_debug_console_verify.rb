@@ -58,6 +58,7 @@ lcd = ST7789DebugConsole.new(
   :y_offset => Y_OFFSET,
   :madctl => MADCTL,
   :invert => INVERT,
+  :scroll_mode => :wrap,
   :foreground => ST7789DebugConsole::GREEN,
   :background => ST7789DebugConsole::BLACK
 )

@@ -89,21 +89,76 @@ class ST7789DebugConsoleTest < Minitest::Test
     assert_equal 2, spi.payloads[-1].bytesize
   end
 
-  def test_write_line_truncates_and_scrolls
+  def test_write_line_uses_one_pixel_transfer
+    spi = FakeSPI.new
+    console = build_console(spi, :rows => 2, :cols => 4)
+
+    console.write_line("one")
+
+    assert_equal 6, spi.payloads.length
+    assert_equal 4 * 8 * 8 * 2, spi.payloads[-1].bytesize
+  end
+
+  def test_line_renderer_matches_character_renderer
+    char_spi = FakeSPI.new
+    char_console = build_console(char_spi, :rows => 1, :cols => 1)
+    char_console.draw_char(0, 0, "A".ord)
+
+    line_spi = FakeSPI.new
+    line_console = build_console(line_spi, :rows => 1, :cols => 1)
+    line_console.write_line("A")
+
+    assert_equal bytes_of(char_spi.payloads[-1]), bytes_of(line_spi.payloads[-1])
+  end
+
+  def test_write_line_truncates_and_wraps_without_redraw
     spi = FakeSPI.new
     console = build_console(spi, :rows => 2, :cols => 4)
 
     console.write_line("abcdef")
     assert_equal "abcd", console.line_at(0)
     assert_equal "", console.line_at(1)
-    assert_equal 13, spi.payloads.length
+    assert_equal 6, spi.payloads.length
 
     console.write_line("two")
-    assert_equal 26, spi.payloads.length
+    assert_equal 12, spi.payloads.length
     console.write_line("three")
     assert_equal "two", console.line_at(0)
     assert_equal "thre", console.line_at(1)
-    assert_equal 52, spi.payloads.length
+    assert_equal 18, spi.payloads.length
+    assert_equal [0, 0, 0, 31], bytes_of(spi.payloads[-5])
+    assert_equal [0, 0, 0, 7], bytes_of(spi.payloads[-3])
+  end
+
+  def test_redraw_scroll_mode_keeps_logical_order
+    spi = FakeSPI.new
+    console = build_console(
+      spi,
+      :rows => 2,
+      :cols => 4,
+      :scroll_mode => :redraw
+    )
+
+    console.write_line("one")
+    console.write_line("two")
+    console.write_line("three")
+
+    assert_equal "two", console.line_at(0)
+    assert_equal "thre", console.line_at(1)
+    assert_equal 24, spi.payloads.length
+  end
+
+  def test_reused_line_buffer_clears_old_glyphs
+    spi = FakeSPI.new
+    console = build_console(spi, :rows => 2, :cols => 1)
+
+    console.write_line("A")
+    first = bytes_of(spi.payloads[-1])
+    console.write_line("")
+    second = bytes_of(spi.payloads[-1])
+
+    assert_includes first, 0x07
+    assert_equal [0] * (8 * 8 * 2), second
   end
 
   def build_console(spi, opts = nil)
@@ -147,7 +202,7 @@ class ST7789DebugConsoleTest < Minitest::Test
     end
 
     def write(v)
-      @payloads << v
+      @payloads << (v.is_a?(String) ? v.dup : v)
       true
     end
 

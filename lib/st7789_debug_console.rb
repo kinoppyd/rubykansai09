@@ -9,7 +9,8 @@
 #   bl = GPIO.new(22, GPIO::OUT)
 #   lcd = ST7789DebugConsole.new(
 #     spi, dc, rst, bl,
-#     :madctl => 0x70 # Waveshare 1.3inch LCD Module
+#     :madctl => 0x70, # Waveshare 1.3inch LCD Module
+#     :scroll_mode => :wrap
 #   )
 #   lcd.write_line("MPU6050 debug")
 #   lcd.write_line("axis y gyro 123")
@@ -97,6 +98,11 @@ class ST7789DebugConsole
     @madctl = opt(o, :madctl, 0x70)
     @invert = opt(o, :invert, true)
     @chunk_pixels = opt(o, :chunk_pixels, 64)
+    @scroll_mode = opt(o, :scroll_mode, :wrap)
+    @line_width = @cols * @cw
+    @line_width = @width if @line_width > @width
+    @line_buffer = pixel_run(@line_width * @ch, @bg)
+    @rendered_text = ""
     @lines = []
     i = 0
     while i < @rows
@@ -233,6 +239,7 @@ class ST7789DebugConsole
     end
     @head = 0
     @line_count = 0
+    clear_rendered_text
     fill_rect(0, 0, @width, @height, @bg)
   end
 
@@ -242,22 +249,30 @@ class ST7789DebugConsole
   end
 
   def color(fg, bg = nil)
+    if !bg.nil? && bg != @bg
+      @bg = bg
+      fill_line_buffer(@bg)
+      @rendered_text = ""
+    else
+      clear_rendered_text
+    end
     @fg = fg
-    @bg = bg unless bg.nil?
     self
   end
 
   def write_line(text)
     text = normalize_text(text)
-    row = @line_count
+    row = @line_count < @rows ? @line_count : @head
     @lines[@head] = text
     @head += 1
     @head = 0 if @head >= @rows
     if @line_count < @rows
       @line_count += 1
       draw_text_line(row, text)
-    else
+    elsif @scroll_mode == :redraw
       redraw
+    else
+      draw_text_line(row, text)
     end
     self
   end
@@ -277,14 +292,9 @@ class ST7789DebugConsole
 
   def draw_text_line(row, text)
     y = row * @ch
-    line_width = @cols * @cw
-    line_width = @width if line_width > @width
-    set_window(0, y, line_width - 1, y + @ch - 1)
-    pixel_row = 0
-    while pixel_row < @ch
-      data(text_pixel_row(text, pixel_row, line_width))
-      pixel_row += 1
-    end
+    render_text_line(text)
+    set_window(0, y, @line_width - 1, y + @ch - 1)
+    data(@line_buffer)
     self
   end
 
@@ -361,24 +371,56 @@ class ST7789DebugConsole
     s
   end
 
-  def text_pixel_row(text, glyph_row, line_width)
-    s = "\0" * (line_width * 2)
+  def render_text_line(text)
+    paint_text(@rendered_text, @bg)
+    paint_text(text, @fg)
+    @rendered_text = text
+  end
+
+  def paint_text(text, color)
+    hi = (color >> 8) & 255
+    lo = color & 255
     cell = 0
-    pos = 0
-    while cell < @cols && pos < s.bytesize
-      ch = cell < text.bytesize ? text.getbyte(cell) : 32
+    while cell < @cols
+      ch = text.getbyte(cell)
+      break if ch.nil?
       pixel_col = 0
-      while pixel_col < @cw && pos < s.bytesize
-        bits = pixel_col < 5 && glyph_row < 7 ? font_byte(ch, pixel_col) : 0
-        color = ((bits >> glyph_row) & 1) == 1 ? @fg : @bg
-        s.setbyte(pos, (color >> 8) & 255)
-        s.setbyte(pos + 1, color & 255)
-        pos += 2
+      while pixel_col < @cw && pixel_col < 5
+        x = cell * @cw + pixel_col
+        break if x >= @line_width
+        bits = font_byte(ch, pixel_col)
+        glyph_row = 0
+        while bits != 0 && glyph_row < @ch && glyph_row < 7
+          if (bits & 1) == 1
+            pos = (glyph_row * @line_width + x) * 2
+            @line_buffer.setbyte(pos, hi)
+            @line_buffer.setbyte(pos + 1, lo)
+          end
+          bits >>= 1
+          glyph_row += 1
+        end
         pixel_col += 1
       end
       cell += 1
     end
-    s
+    self
+  end
+
+  def clear_rendered_text
+    paint_text(@rendered_text, @bg) unless @rendered_text.empty?
+    @rendered_text = ""
+  end
+
+  def fill_line_buffer(color)
+    hi = (color >> 8) & 255
+    lo = color & 255
+    pos = 0
+    while pos < @line_buffer.bytesize
+      @line_buffer.setbyte(pos, hi)
+      @line_buffer.setbyte(pos + 1, lo)
+      pos += 2
+    end
+    self
   end
 
   def byte_string(value)

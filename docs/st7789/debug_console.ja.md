@@ -17,8 +17,11 @@ RGB565 の全画面 framebuffer を持つと、次のメモリが必要です。
 
 - `fill_rect` は、指定した RGB565 色を小さな chunk に分けて書く。
 - `draw_char` は、8x8 文字セル1つ分、128 bytes だけを生成する。
-- テキストスクロールは、短い行文字列のリングバッファだけを持つ。
-- 画面が埋まるまでは、追加した1行だけを描画する。
+- テキスト出力は、短い行文字列のリングバッファだけを持つ。
+- `draw_text_line` は3,840 bytesのRGB565行バッファを再利用し、完成した
+  1行を1回の画素データ転送で送る。
+- 標準の`:wrap`モードは、画面が埋まった後に全画面を再描画せず、最も
+  古い物理行だけを上書きする。
 
 240x240 LCD を 8x8 セルで使う場合、標準では次の表示になります。
 
@@ -68,6 +71,7 @@ lcd = ST7789DebugConsole.new(
   :y_offset => 0,
   :madctl => 0x70,
   :invert => true,
+  :scroll_mode => :wrap,
   :foreground => ST7789DebugConsole::GREEN,
   :background => ST7789DebugConsole::BLACK,
   :chunk_pixels => 64
@@ -80,6 +84,8 @@ lcd = ST7789DebugConsole.new(
 - `:madctl`: 画面回転やRGB/BGR順を決める ST7789 の Memory Access Control 値。
 - `:invert`: true なら `INVON`、false なら `INVOFF` を送る。
 - `:foreground`, `:background`: RGB565 の文字色と背景色。
+- `:scroll_mode`: `:wrap`は1行を上書きし、`:redraw`は全行を再描画して
+  通常のスクロール表示を行う。
 - `:chunk_pixels`: `fill_rect` が一度に生成する最大ピクセル数。
 - `:auto_init`: テストや独自初期化時に false にできる。
 - `:clear_on_init`: 起動時に画面クリアしたくない場合は false にする。
@@ -90,10 +96,33 @@ lcd = ST7789DebugConsole.new(
 - `:x_offset => 0`
 - `:y_offset => 0`
 - `:invert => true`
+- `:scroll_mode => :wrap`
 
 初期化では、Waveshare公式ドライバの porch、gate、VCOM、frame rate、
 power、gamma設定を送信します。バックライトは初期化と起動時クリアが
 終わるまで消灯します。
+
+## 描画と行あふれ
+
+高さ8ピクセルのテキスト1行は3,840 bytesのRGB565データになります。
+ドライバはLCDの描画領域を設定する前に、再利用するバッファ上で1行を
+完成させ、その後1回の`SPI#write`で送信します。これにより、PicoRubyが
+次の走査線を生成する間に文字が上から徐々に表示される現象を防ぎます。
+
+標準の`:scroll_mode => :wrap`は、組み込みデバッグ出力で処理を止めない
+ことを優先します。30行目の次は物理行0へ戻り、呼び出しごとに1行だけを
+上書きします。`line_at`が返す文字列は時系列順のままですが、LCD上では
+既存行全体を上へ移動せず、循環表示になります。
+
+端末のような通常のスクロール表示が必要な場合は、
+`:scroll_mode => :redraw`を指定します。行描画自体は以前より高速ですが、
+画面が埋まった後は、新しい行ごとに30行、合計115,200 bytesを生成して
+転送する必要があります。
+
+Waveshare標準の`MADCTL=0x70`では、ST7789のハードウェア縦スクロールを
+使用していません。この値では`MV`ビットが有効ですが、
+[ST7789Vデータシート](https://www.lcd-module.com/fileadmin/eng/pdf/zubehoer/ST7789V.pdf)は、
+縦スクロール中のフレームメモリ書き込みに`MV=0`を要求します。
 
 ## PicoRubyのバイナリ文字列
 
@@ -130,8 +159,7 @@ Waveshareモジュールでは、まず
 
 よく使うメソッド:
 
-- `write_line(text)`: デバッグ行を1行追加する。全行再描画はスクロール
-  開始後だけ行う。
+- `write_line(text)`: 選択したスクロールモードでデバッグ行を1行追加する。
 - `puts(text)`: `write_line` 用の簡易メソッド。
 - `clear`: LCDをクリアし、行リングバッファもリセットする。
 - `backlight(on)`: backlight pin がある場合にON/OFFする。
@@ -177,5 +205,6 @@ examples/st7789_debug_console_verify.rb
 - 日本語フォントなし。
 - 画像描画なし。
 - 全画面framebufferなし。
-- 30行のリングバッファがスクロールを始めた後は全行再描画が必要。
+- `:wrap`は古い全行を移動せず、物理行を循環して上書きする。
+- `:redraw`は通常のスクロール表示になるが、全画面を転送する。
 - host test では実LCDの表示確認は行わない。
