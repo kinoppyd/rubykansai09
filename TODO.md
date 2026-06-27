@@ -1,6 +1,6 @@
 # PicoRuby BLE Sensor Module TODO
 
-最終更新: 2026-06-14 22:28:44 JST
+最終更新: 2026-06-27 JST
 
 ## 残タスク
 
@@ -86,3 +86,4 @@
 - Bluetooth SIG, [Cycling Speed and Cadence Service 1.0](https://www.bluetooth.com/wp-content/uploads/Files/Specification/HTML/CSCS_v1.0/out/en/index-en.html)
 - Project docs, [spec.md](docs/spec.md)
 - Project docs, [sensors.md](docs/sensors.md)
+- Project docs, [rotation_detector.dm](docs/mpu_6050/rotation_detector.dm)

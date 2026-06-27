@@ -1,5 +1,117 @@
 # Archived TODO
 
+## 2026-06-27 20:21:56 JST
+
+Resolved ST7789 hardware-validation follow-up:
+
+- [x] Identified PicoRuby UTF-8 expansion of `String#<< integer` as the cause
+  of corrupted coordinates and RGB565 data.
+- [x] Replaced coordinate, fill, character, and text-row byte builders with
+  fixed-size strings written through `String#setbyte`.
+- [x] Added the Waveshare 1.3inch LCD Module initialization registers.
+- [x] Changed the default `MADCTL` value to the Waveshare setting `0x70`.
+- [x] Kept the backlight off until initialization and the startup clear finish.
+- [x] Changed `write_line` to draw only the new row until scrolling starts.
+- [x] Added exact-byte regression tests for coordinate 239 and RGB565 colors.
+- [x] Verified the exact bytes with the built PicoRuby host executable.
+- [x] Updated the English and Japanese documentation and verification example.
+
+## 2026-06-26 23:49:12 JST
+
+Resolved by:
+
+- Added `lib/st7789_debug_console.rb`
+- Added `examples/st7789_debug_console_verify.rb`
+- Added `test/st7789_debug_console_test.rb`
+- Added `docs/st7789/debug_console.md`
+- Added `docs/st7789/debug_console.ja.md`
+- Verified host tests with `ruby -Ilib test/st7789_debug_console_test.rb`
+- Verified existing tests with `ruby -Ilib test/ble_csc_service_test.rb`
+- Verified syntax with `ruby -c lib/st7789_debug_console.rb`
+- Verified syntax with `ruby -c examples/st7789_debug_console_verify.rb`
+- Verified PicoRuby host smoke with `tmp/picoruby/build/host/bin/picoruby`
+
+Completed TODO items:
+
+- [x] モジュール名と配置を決める。
+  - [x] `lib/st7789_debug_console.rb`
+  - [x] `ST7789DebugConsole`
+- [x] 240x240 RGB565 全画面 framebuffer は使わない方針にする。
+  - [x] 240 * 240 * 2 = 115,200 bytes の全画面バッファは持たない。
+  - [x] 8x8文字セル単位、または小さいピクセルchunk単位で描画する。
+- [x] 最初の機能範囲を「デバッグ用テキストライン出力」に絞る。
+  - [x] `write_line(text)` と `puts(text)` を実装。
+  - [x] 固定幅ASCIIフォントを実装。
+  - [x] foreground/background の2色を扱う。
+  - [x] 画面回転、任意フォント、日本語フォント、画像描画は制限事項として文書化。
+- [x] LCDモジュールの接続ピンを設定できるようにする。
+  - [x] SPI unit、SCK、COPI/MOSI、CS、DC、RST、BL/backlight を example 定数で指定。
+  - [x] CIPO/MISO 未接続向けに `cipo_pin: -1` をexampleに記載。
+  - [x] 実機固有の最終ピン確定はexample冒頭の定数変更で対応。
+- [x] LCDモジュール固有の表示設定を設定できるようにする。
+  - [x] 240x240 表示領域。
+  - [x] X/Y offset。
+  - [x] `MADCTL`。
+  - [x] `INVON` / `INVOFF`。
+- [x] PicoRuby firmware に必要な `picoruby-spi` と `picoruby-gpio` をexampleで要求する。
+- [x] ST7789 command/data 書き込みAPIを設計・実装する。
+  - [x] `command(byte)`
+  - [x] `data(byte_or_string)`
+  - [x] `set_window(x0, y0, x1, y1)`
+  - [x] `write_pixels(rgb565_data)`
+- [x] GPIO制御をPicoRuby向けに実装する。
+  - [x] DC pin の command/data 切り替え。
+  - [x] RST pin の reset sequence。
+  - [x] BL pin のON/OFF。
+- [x] ST7789 初期化シーケンスを実装する。
+  - [x] `SWRESET`
+  - [x] `SLPOUT`
+  - [x] `COLMOD` を RGB565 / 16bit に設定。
+  - [x] `MADCTL`
+  - [x] `INVON` / `INVOFF`
+  - [x] `DISPON`
+- [x] `fill_rect(x, y, w, h, color)` を小さいchunkで実装する。
+  - [x] 全画面クリアにも使用。
+  - [x] 大きなStringを作らず `:chunk_pixels` 単位でRGB565データを生成。
+- [x] ASCII固定幅フォントを決める。
+  - [x] 5x7 glyph を 8x8 cell として描画。
+  - [x] フォントデータは数値テーブルとして同梱。
+- [x] 1文字描画を実装する。
+  - [x] `draw_char(x, y, ch, fg, bg)`
+  - [x] 1文字分のRGB565バッファだけを生成。
+- [x] 1行描画を実装する。
+  - [x] `draw_text_line(row, text)`
+  - [x] 長すぎる文字列は画面幅で切る。
+  - [x] 余白は背景色で埋める。
+- [x] スクロール方針を決める。
+  - [x] 行リングバッファを保持して全行再描画。
+  - [x] 240 / 8 = 30 行を標準にした。
+  - [x] 行文字列の最大長は `cols` で固定。
+- [x] デバッグ出力APIを実装する。
+  - [x] `write_line(text)`
+  - [x] `clear`
+  - [x] `backlight(on)`
+  - [x] `color(fg, bg = nil)`
+- [x] ST7789単体確認用 example を作る。
+  - [x] `examples/st7789_debug_console_verify.rb`
+  - [x] 起動時に画面クリア。
+  - [x] 複数行のテキストを表示。
+  - [x] カウンタを1秒ごとに追記。
+- [x] MPU-6050検証コードと接続する方針を決める。
+  - [x] 詳細ログはUSB serial、LCDには短い状態行を出す方針として文書化。
+  - [x] `EVENT`, `count`, `axis`, `gyro_dps`, `angle`, `dt_skipped` を優先表示候補にした。
+- [x] CRuby用のFake SPI/Fake GPIOを用意する。
+- [x] ST7789初期化コマンド列をテストする。
+- [x] `set_window` の `CASET` / `RASET` / `RAMWR` をテストする。
+- [x] `fill_rect` が期待サイズのRGB565データを書き込むことをテストする。
+- [x] テキスト行の切り詰め、行送り、リングバッファ再描画をテストする。
+- [x] PicoRuby host build で require と最小描画APIのsmoke testを実行する。
+- [x] `docs/st7789/debug_console.md` を作成する。
+- [x] `docs/st7789/debug_console.ja.md` を作成する。
+- [x] 配線例、SPI unit名、初期化オプション、メモリ方針を書く。
+- [x] 240x240 LCDで表示できる行数と文字数を書く。
+- [x] 既知の制限として、日本語フォントなし、画像描画なし、全画面framebufferなしを明記する。
+
 ## 2026-06-14 22:28:44 JST
 
 Resolved by:
