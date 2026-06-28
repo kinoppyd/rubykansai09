@@ -24,6 +24,7 @@ Y_OFFSET = 0
 # Waveshare 1.3inch LCD Module uses this horizontal scan setting.
 MADCTL = 0x70
 INVERT = true
+TEXT_SCALE = 2
 
 def wait_ms(ms)
   if Object.const_defined?(:Machine) && Machine.respond_to?(:delay_ms)
@@ -58,7 +59,8 @@ lcd = ST7789DebugConsole.new(
   :y_offset => Y_OFFSET,
   :madctl => MADCTL,
   :invert => INVERT,
-  :scroll_mode => :wrap,
+  :scroll_mode => :page,
+  :text_scale => TEXT_SCALE,
   :foreground => ST7789DebugConsole::GREEN,
   :background => ST7789DebugConsole::BLACK
 )

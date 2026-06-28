@@ -15,13 +15,17 @@ A full RGB565 framebuffer would require:
 
 That is too large for the intended PicoRuby use. Instead, the console writes directly to the display using small pixel chunks:
 
-- `fill_rect` writes repeated RGB565 pixels in configurable chunks.
+- `fill_rect` keeps chip select active while streaming reusable RGB565 chunks.
 - `draw_char` builds one 8x8 character cell, 128 bytes.
+- the 5x7 font is one 480-byte String instead of an Array of 480 Integer
+  objects.
 - text output keeps only a ring of short line strings.
-- `draw_text_line` reuses one 3,840-byte RGB565 line buffer and sends the
-  completed line in one pixel-data transfer.
-- the default `:wrap` mode overwrites the oldest physical row after the
-  display is full instead of redrawing the entire display.
+- `draw_text_line` rasterizes into a compact 1-bit mask: 240 bytes at scale 1
+  or 480 bytes at scale 2.
+- RGB565 pixels are streamed in groups of at most 64 bytes; no 3,840-byte
+  line buffer is retained or allocated by the SPI layer.
+- the default `:page` mode clears the previous page before returning to the
+  first physical row.
 
 For a 240x240 display using 8x8 cells, the default console is:
 
@@ -71,10 +75,11 @@ lcd = ST7789DebugConsole.new(
   :y_offset => 0,
   :madctl => 0x70,
   :invert => true,
-  :scroll_mode => :wrap,
+  :scroll_mode => :page,
+  :text_scale => 2,
   :foreground => ST7789DebugConsole::GREEN,
   :background => ST7789DebugConsole::BLACK,
-  :chunk_pixels => 64
+  :chunk_pixels => 127
 )
 ```
 
@@ -84,9 +89,13 @@ Important options:
 - `:madctl`: ST7789 memory access control value for rotation and RGB/BGR order.
 - `:invert`: sends `INVON` when true and `INVOFF` when false.
 - `:foreground`, `:background`: RGB565 text colors.
-- `:scroll_mode`: `:wrap` overwrites one row; `:redraw` performs conventional
-  scrolling by redrawing all rows.
-- `:chunk_pixels`: maximum pixels per generated fill chunk.
+- `:scroll_mode`: `:page` clears at the page boundary, `:wrap` overwrites one
+  physical row, and `:redraw` performs conventional scrolling by redrawing all
+  rows.
+- `:text_scale`: integer glyph scale. Use `1` for 8x8 cells or `2` for 16x16
+  cells.
+- `:chunk_pixels`: pixels per fill transfer. Values are clamped to `1..127` so
+  each RGB565 write remains below PicoRuby SPI's 256-byte heap threshold.
 - `:auto_init`: set false in tests or when initialization is handled elsewhere.
 - `:clear_on_init`: set false to avoid clearing the screen at startup.
 
@@ -96,7 +105,8 @@ The defaults match the Waveshare 1.3inch LCD Module:
 - `:x_offset => 0`
 - `:y_offset => 0`
 - `:invert => true`
-- `:scroll_mode => :wrap`
+- `:scroll_mode => :page`
+- `:text_scale => 1`
 
 The initialization sequence includes the porch, gate, VCOM, frame-rate,
 power, and gamma settings from the Waveshare driver. The backlight remains
@@ -104,20 +114,44 @@ off until initialization and the startup clear are complete.
 
 ## Rendering and Overflow
 
-Each 8-pixel-high text row contains 3,840 RGB565 bytes. The driver prepares
-that complete row in a reusable buffer before setting the LCD address window,
-then sends the pixels with one `SPI#write`. This prevents individual glyph
-scanlines from becoming visible while PicoRuby is still rasterizing the next
-part of the row.
+At scale 1, each 8-pixel-high text row contains 3,840 RGB565 bytes. At scale 2,
+each 16-pixel-high row contains 7,680 bytes. The driver prepares the complete
+text as a compact 1-bit mask before setting the LCD address window. It then
+expands two pixels at a time through four reusable RGB565 patterns. Each
+`SPI#write` contains at most 64 bytes, below PicoRuby SPI's 256-byte
+stack-buffer boundary, so the SPI layer does not request a heap buffer.
 
-The default `:scroll_mode => :wrap` is intended for embedded debug output.
-After row 30, it returns to physical row 0 and overwrites one row per call.
-`line_at` still exposes the retained strings in chronological order, but the
-physical display is circular rather than visually shifted upward.
+## Text Size
+
+Set `:text_scale => 2` for larger debug text. The 5x7 glyph pixels and the
+surrounding 8x8 cell are doubled in both directions.
+
+| Scale | Cell | Columns | Rows | Mask memory |
+| --- | --- | ---: | ---: | ---: |
+| `1` | 8x8 | 30 | 30 | 240 bytes |
+| `2` | 16x16 | 15 | 15 | 480 bytes |
+
+Scale 2 is used by `examples/st7789_debug_console_verify.rb`. Scale 1 remains
+the library default for compatibility and minimum memory use.
+
+This replaces the previous 3,840-byte persistent line buffer. That buffer was
+also copied into another 3,840-byte allocation by `SPI#write`, which could
+raise `NoMemoryError` immediately on an R2P2 heap already holding the MPU-6050
+and BLE objects.
+
+The default `:scroll_mode => :page` is intended for embedded debug output.
+After the last row, it erases only the tracked text rectangles and retained
+line strings before drawing the next line at physical row 0. The unchanged
+background is not transferred again, so page changes are faster than a full
+115,200-byte clear.
+
+Set `:scroll_mode => :wrap` only when the lowest possible overflow latency is
+required. It overwrites physical rows in a circle without clearing the other
+rows, so old content remains visible until each row is replaced.
 
 Set `:scroll_mode => :redraw` when conventional terminal-like scrolling is
-more important than latency. That mode redraws all 30 rows after every new
-line once the display is full. The optimized line renderer makes it faster
+more important than latency. That mode redraws all visible rows after every
+new line once the display is full. The optimized line renderer makes it faster
 than the original implementation, but it must still rasterize and transfer a
 complete 115,200-byte screen.
 
@@ -204,6 +238,7 @@ telemetry.
 - No Japanese font.
 - No image drawing.
 - No full-screen framebuffer.
-- `:wrap` uses circular physical rows instead of visually moving old rows.
+- `:page` clears the previous page before returning to row 0.
+- `:wrap` uses circular physical rows and leaves other old rows visible.
 - `:redraw` provides conventional scrolling but transfers a complete screen.
 - No hardware validation is performed by the host tests.

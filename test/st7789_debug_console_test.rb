@@ -7,6 +7,11 @@ require "minitest/autorun"
 require "st7789_debug_console"
 
 class ST7789DebugConsoleTest < Minitest::Test
+  def test_font_uses_one_compact_string
+    assert_instance_of String, ST7789DebugConsole::FONT
+    assert_equal 480, ST7789DebugConsole::FONT.bytesize
+  end
+
   def test_initialization_sequence
     spi = FakeSPI.new
     dc = FakePin.new
@@ -74,7 +79,7 @@ class ST7789DebugConsoleTest < Minitest::Test
 
     console.draw_char(0, 0, "A".ord, ST7789DebugConsole::WHITE, ST7789DebugConsole::BLACK)
 
-    pixels = spi.payloads[-1]
+    pixels = spi.payloads[-8, 8].join
     assert_equal 128, pixels.bytesize
     assert_includes bytes_of(pixels), 0xff
   end
@@ -89,14 +94,28 @@ class ST7789DebugConsoleTest < Minitest::Test
     assert_equal 2, spi.payloads[-1].bytesize
   end
 
-  def test_write_line_uses_one_pixel_transfer
+  def test_write_line_uses_bounded_pixel_transfers
     spi = FakeSPI.new
     console = build_console(spi, :rows => 2, :cols => 4)
 
     console.write_line("one")
 
-    assert_equal 6, spi.payloads.length
-    assert_equal 4 * 8 * 8 * 2, spi.payloads[-1].bytesize
+    assert_equal 13, spi.payloads.length
+    assert_equal 8, spi.payloads[-8, 8].length
+    assert spi.payloads[-8, 8].all? { |payload| payload.bytesize == 64 }
+  end
+
+  def test_default_line_avoids_large_rgb565_buffer
+    spi = FakeSPI.new
+    console = build_console(spi)
+
+    console.write_line("MPU6050 debug")
+
+    pixel_payloads = spi.payloads[5, spi.payloads.length - 5]
+    assert_equal 3_840, pixel_payloads.inject(0) { |sum, value| sum + value.bytesize }
+    assert_operator pixel_payloads.map(&:bytesize).max, :<=, 64
+    assert_equal 240, console.instance_variable_get(:@text_masks).bytesize
+    refute console.instance_variable_defined?(:@line_buffer)
   end
 
   def test_line_renderer_matches_character_renderer
@@ -108,26 +127,85 @@ class ST7789DebugConsoleTest < Minitest::Test
     line_console = build_console(line_spi, :rows => 1, :cols => 1)
     line_console.write_line("A")
 
-    assert_equal bytes_of(char_spi.payloads[-1]), bytes_of(line_spi.payloads[-1])
+    line_pixels = line_spi.payloads[-8, 8].join
+    char_pixels = char_spi.payloads[-8, 8].join
+    assert_equal bytes_of(char_pixels), bytes_of(line_pixels)
+  end
+
+  def test_text_scale_two_doubles_cells_and_glyph_pixels
+    spi = FakeSPI.new
+    console = build_console(
+      spi,
+      :width => 32,
+      :height => 32,
+      :text_scale => 2
+    )
+
+    assert_equal 2, console.text_scale
+    assert_equal 2, console.cols
+    assert_equal 2, console.rows
+
+    console.write_line("A")
+    pixels = spi.payloads[-16, 16].join
+
+    assert_equal 32 * 16 * 2, pixels.bytesize
+    assert_equal ST7789DebugConsole::BLACK, rgb565_at(pixels, 32, 0, 0)
+    assert_equal ST7789DebugConsole::GREEN, rgb565_at(pixels, 32, 0, 2)
+    assert_equal ST7789DebugConsole::GREEN, rgb565_at(pixels, 32, 1, 3)
+    assert_equal ST7789DebugConsole::BLACK, rgb565_at(pixels, 32, 10, 3)
+    assert_equal 64, console.instance_variable_get(:@text_masks).bytesize
   end
 
   def test_write_line_truncates_and_wraps_without_redraw
     spi = FakeSPI.new
-    console = build_console(spi, :rows => 2, :cols => 4)
+    console = build_console(
+      spi,
+      :rows => 2,
+      :cols => 4,
+      :scroll_mode => :wrap
+    )
 
     console.write_line("abcdef")
     assert_equal "abcd", console.line_at(0)
     assert_equal "", console.line_at(1)
-    assert_equal 6, spi.payloads.length
+    assert_equal 13, spi.payloads.length
 
     console.write_line("two")
-    assert_equal 12, spi.payloads.length
+    assert_equal 26, spi.payloads.length
     console.write_line("three")
     assert_equal "two", console.line_at(0)
     assert_equal "thre", console.line_at(1)
-    assert_equal 18, spi.payloads.length
-    assert_equal [0, 0, 0, 31], bytes_of(spi.payloads[-5])
-    assert_equal [0, 0, 0, 7], bytes_of(spi.payloads[-3])
+    assert_equal 39, spi.payloads.length
+    assert_equal [0, 0, 0, 31], bytes_of(spi.payloads[-12])
+    assert_equal [0, 0, 0, 7], bytes_of(spi.payloads[-10])
+  end
+
+  def test_default_page_mode_clears_before_returning_to_first_row
+    spi = FakeSPI.new
+    console = build_console(
+      spi,
+      :width => 32,
+      :height => 16,
+      :rows => 2,
+      :cols => 4,
+      :chunk_pixels => 64
+    )
+
+    console.write_line("one")
+    console.write_line("two")
+    console.write_line("three")
+
+    assert_equal "thre", console.line_at(0)
+    assert_equal "", console.line_at(1)
+    assert_equal 1, console.instance_variable_get(:@line_count)
+
+    third_write = spi.payloads[-29, 29]
+    assert_equal [0, 0, 0, 20], bytes_of(third_write[1])
+    assert_equal [0, 0, 0, 6], bytes_of(third_write[3])
+    assert_equal [0] * 128, bytes_of(third_write[5])
+    assert_equal [0, 8, 0, 14], bytes_of(third_write[11])
+    assert_equal [0, 0, 0, 31], bytes_of(third_write[17])
+    assert_equal [0, 0, 0, 7], bytes_of(third_write[19])
   end
 
   def test_redraw_scroll_mode_keeps_logical_order
@@ -145,17 +223,17 @@ class ST7789DebugConsoleTest < Minitest::Test
 
     assert_equal "two", console.line_at(0)
     assert_equal "thre", console.line_at(1)
-    assert_equal 24, spi.payloads.length
+    assert_equal 52, spi.payloads.length
   end
 
-  def test_reused_line_buffer_clears_old_glyphs
+  def test_text_mask_clears_old_glyphs
     spi = FakeSPI.new
     console = build_console(spi, :rows => 2, :cols => 1)
 
     console.write_line("A")
-    first = bytes_of(spi.payloads[-1])
+    first = bytes_of(spi.payloads[-8, 8].join)
     console.write_line("")
-    second = bytes_of(spi.payloads[-1])
+    second = bytes_of(spi.payloads[-8, 8].join)
 
     assert_includes first, 0x07
     assert_equal [0] * (8 * 8 * 2), second
@@ -190,6 +268,11 @@ class ST7789DebugConsoleTest < Minitest::Test
     a
   end
 
+  def rgb565_at(data, width, x, y)
+    pos = (y * width + x) * 2
+    (data.getbyte(pos) << 8) | data.getbyte(pos + 1)
+  end
+
   class FakeSPI
     attr_reader :payloads
 
@@ -201,8 +284,9 @@ class ST7789DebugConsoleTest < Minitest::Test
       yield self
     end
 
-    def write(v)
-      @payloads << (v.is_a?(String) ? v.dup : v)
+    def write(*values)
+      value = values.length == 1 ? values[0] : values.join
+      @payloads << (value.is_a?(String) ? value.dup : value)
       true
     end
 

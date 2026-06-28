@@ -10,7 +10,8 @@
 #   lcd = ST7789DebugConsole.new(
 #     spi, dc, rst, bl,
 #     :madctl => 0x70, # Waveshare 1.3inch LCD Module
-#     :scroll_mode => :wrap
+#     :scroll_mode => :page,
+#     :text_scale => 2
 #   )
 #   lcd.write_line("MPU6050 debug")
 #   lcd.write_line("axis y gyro 123")
@@ -51,34 +52,33 @@ class ST7789DebugConsole
   PVGAMCTRL = 0xe0
   NVGAMCTRL = 0xe1
 
-  FONT = [
-    0x00,0x00,0x00,0x00,0x00, 0x00,0x00,0x5f,0x00,0x00, 0x00,0x07,0x00,0x07,0x00, 0x14,0x7f,0x14,0x7f,0x14,
-    0x24,0x2a,0x7f,0x2a,0x12, 0x23,0x13,0x08,0x64,0x62, 0x36,0x49,0x55,0x22,0x50, 0x00,0x05,0x03,0x00,0x00,
-    0x00,0x1c,0x22,0x41,0x00, 0x00,0x41,0x22,0x1c,0x00, 0x14,0x08,0x3e,0x08,0x14, 0x08,0x08,0x3e,0x08,0x08,
-    0x00,0x50,0x30,0x00,0x00, 0x08,0x08,0x08,0x08,0x08, 0x00,0x60,0x60,0x00,0x00, 0x20,0x10,0x08,0x04,0x02,
-    0x3e,0x51,0x49,0x45,0x3e, 0x00,0x42,0x7f,0x40,0x00, 0x42,0x61,0x51,0x49,0x46, 0x21,0x41,0x45,0x4b,0x31,
-    0x18,0x14,0x12,0x7f,0x10, 0x27,0x45,0x45,0x45,0x39, 0x3c,0x4a,0x49,0x49,0x30, 0x01,0x71,0x09,0x05,0x03,
-    0x36,0x49,0x49,0x49,0x36, 0x06,0x49,0x49,0x29,0x1e, 0x00,0x36,0x36,0x00,0x00, 0x00,0x56,0x36,0x00,0x00,
-    0x08,0x14,0x22,0x41,0x00, 0x14,0x14,0x14,0x14,0x14, 0x00,0x41,0x22,0x14,0x08, 0x02,0x01,0x51,0x09,0x06,
-    0x32,0x49,0x79,0x41,0x3e, 0x7e,0x11,0x11,0x11,0x7e, 0x7f,0x49,0x49,0x49,0x36, 0x3e,0x41,0x41,0x41,0x22,
-    0x7f,0x41,0x41,0x22,0x1c, 0x7f,0x49,0x49,0x49,0x41, 0x7f,0x09,0x09,0x09,0x01, 0x3e,0x41,0x49,0x49,0x7a,
-    0x7f,0x08,0x08,0x08,0x7f, 0x00,0x41,0x7f,0x41,0x00, 0x20,0x40,0x41,0x3f,0x01, 0x7f,0x08,0x14,0x22,0x41,
-    0x7f,0x40,0x40,0x40,0x40, 0x7f,0x02,0x0c,0x02,0x7f, 0x7f,0x04,0x08,0x10,0x7f, 0x3e,0x41,0x41,0x41,0x3e,
-    0x7f,0x09,0x09,0x09,0x06, 0x3e,0x41,0x51,0x21,0x5e, 0x7f,0x09,0x19,0x29,0x46, 0x46,0x49,0x49,0x49,0x31,
-    0x01,0x01,0x7f,0x01,0x01, 0x3f,0x40,0x40,0x40,0x3f, 0x1f,0x20,0x40,0x20,0x1f, 0x3f,0x40,0x38,0x40,0x3f,
-    0x63,0x14,0x08,0x14,0x63, 0x07,0x08,0x70,0x08,0x07, 0x61,0x51,0x49,0x45,0x43, 0x00,0x7f,0x41,0x41,0x00,
-    0x02,0x04,0x08,0x10,0x20, 0x00,0x41,0x41,0x7f,0x00, 0x04,0x02,0x01,0x02,0x04, 0x40,0x40,0x40,0x40,0x40,
-    0x00,0x01,0x02,0x04,0x00, 0x20,0x54,0x54,0x54,0x78, 0x7f,0x48,0x44,0x44,0x38, 0x38,0x44,0x44,0x44,0x20,
-    0x38,0x44,0x44,0x48,0x7f, 0x38,0x54,0x54,0x54,0x18, 0x08,0x7e,0x09,0x01,0x02, 0x0c,0x52,0x52,0x52,0x3e,
-    0x7f,0x08,0x04,0x04,0x78, 0x00,0x44,0x7d,0x40,0x00, 0x20,0x40,0x44,0x3d,0x00, 0x7f,0x10,0x28,0x44,0x00,
-    0x00,0x41,0x7f,0x40,0x00, 0x7c,0x04,0x18,0x04,0x78, 0x7c,0x08,0x04,0x04,0x78, 0x38,0x44,0x44,0x44,0x38,
-    0x7c,0x14,0x14,0x14,0x08, 0x08,0x14,0x14,0x18,0x7c, 0x7c,0x08,0x04,0x04,0x08, 0x48,0x54,0x54,0x54,0x20,
-    0x04,0x3f,0x44,0x40,0x20, 0x3c,0x40,0x40,0x20,0x7c, 0x1c,0x20,0x40,0x20,0x1c, 0x3c,0x40,0x30,0x40,0x3c,
-    0x44,0x28,0x10,0x28,0x44, 0x0c,0x50,0x50,0x50,0x3c, 0x44,0x64,0x54,0x4c,0x44, 0x00,0x08,0x36,0x41,0x00,
-    0x00,0x00,0x7f,0x00,0x00, 0x00,0x41,0x36,0x08,0x00, 0x08,0x04,0x08,0x10,0x08, 0x00,0x06,0x09,0x09,0x06
-  ]
+  FONT =
+    "\x00\x00\x00\x00\x00\x00\x00\x5f\x00\x00\x00\x07\x00\x07\x00\x14\x7f\x14\x7f\x14" \
+    "\x24\x2a\x7f\x2a\x12\x23\x13\x08\x64\x62\x36\x49\x55\x22\x50\x00\x05\x03\x00\x00" \
+    "\x00\x1c\x22\x41\x00\x00\x41\x22\x1c\x00\x14\x08\x3e\x08\x14\x08\x08\x3e\x08\x08" \
+    "\x00\x50\x30\x00\x00\x08\x08\x08\x08\x08\x00\x60\x60\x00\x00\x20\x10\x08\x04\x02" \
+    "\x3e\x51\x49\x45\x3e\x00\x42\x7f\x40\x00\x42\x61\x51\x49\x46\x21\x41\x45\x4b\x31" \
+    "\x18\x14\x12\x7f\x10\x27\x45\x45\x45\x39\x3c\x4a\x49\x49\x30\x01\x71\x09\x05\x03" \
+    "\x36\x49\x49\x49\x36\x06\x49\x49\x29\x1e\x00\x36\x36\x00\x00\x00\x56\x36\x00\x00" \
+    "\x08\x14\x22\x41\x00\x14\x14\x14\x14\x14\x00\x41\x22\x14\x08\x02\x01\x51\x09\x06" \
+    "\x32\x49\x79\x41\x3e\x7e\x11\x11\x11\x7e\x7f\x49\x49\x49\x36\x3e\x41\x41\x41\x22" \
+    "\x7f\x41\x41\x22\x1c\x7f\x49\x49\x49\x41\x7f\x09\x09\x09\x01\x3e\x41\x49\x49\x7a" \
+    "\x7f\x08\x08\x08\x7f\x00\x41\x7f\x41\x00\x20\x40\x41\x3f\x01\x7f\x08\x14\x22\x41" \
+    "\x7f\x40\x40\x40\x40\x7f\x02\x0c\x02\x7f\x7f\x04\x08\x10\x7f\x3e\x41\x41\x41\x3e" \
+    "\x7f\x09\x09\x09\x06\x3e\x41\x51\x21\x5e\x7f\x09\x19\x29\x46\x46\x49\x49\x49\x31" \
+    "\x01\x01\x7f\x01\x01\x3f\x40\x40\x40\x3f\x1f\x20\x40\x20\x1f\x3f\x40\x38\x40\x3f" \
+    "\x63\x14\x08\x14\x63\x07\x08\x70\x08\x07\x61\x51\x49\x45\x43\x00\x7f\x41\x41\x00" \
+    "\x02\x04\x08\x10\x20\x00\x41\x41\x7f\x00\x04\x02\x01\x02\x04\x40\x40\x40\x40\x40" \
+    "\x00\x01\x02\x04\x00\x20\x54\x54\x54\x78\x7f\x48\x44\x44\x38\x38\x44\x44\x44\x20" \
+    "\x38\x44\x44\x48\x7f\x38\x54\x54\x54\x18\x08\x7e\x09\x01\x02\x0c\x52\x52\x52\x3e" \
+    "\x7f\x08\x04\x04\x78\x00\x44\x7d\x40\x00\x20\x40\x44\x3d\x00\x7f\x10\x28\x44\x00" \
+    "\x00\x41\x7f\x40\x00\x7c\x04\x18\x04\x78\x7c\x08\x04\x04\x78\x38\x44\x44\x44\x38" \
+    "\x7c\x14\x14\x14\x08\x08\x14\x14\x18\x7c\x7c\x08\x04\x04\x08\x48\x54\x54\x54\x20" \
+    "\x04\x3f\x44\x40\x20\x3c\x40\x40\x20\x7c\x1c\x20\x40\x20\x1c\x3c\x40\x30\x40\x3c" \
+    "\x44\x28\x10\x28\x44\x0c\x50\x50\x50\x3c\x44\x64\x54\x4c\x44\x00\x08\x36\x41\x00" \
+    "\x00\x00\x7f\x00\x00\x00\x41\x36\x08\x00\x08\x04\x08\x10\x08\x00\x06\x09\x09\x06"
 
-  attr_reader :width, :height, :cols, :rows
+  attr_reader :width, :height, :cols, :rows, :text_scale
 
   def initialize(spi, dc, rst = nil, bl = nil, o = nil)
     @spi = spi
@@ -89,20 +89,27 @@ class ST7789DebugConsole
     @height = opt(o, :height, 240)
     @xoff = opt(o, :x_offset, 0)
     @yoff = opt(o, :y_offset, 0)
-    @cw = opt(o, :char_width, 8)
-    @ch = opt(o, :char_height, 8)
+    @text_scale = opt(o, :text_scale, 1)
+    @text_scale = 1 if @text_scale < 1
+    @cw = opt(o, :char_width, 8 * @text_scale)
+    @ch = opt(o, :char_height, 8 * @text_scale)
     @cols = opt(o, :cols, @width / @cw)
     @rows = opt(o, :rows, @height / @ch)
     @fg = opt(o, :foreground, GREEN)
     @bg = opt(o, :background, BLACK)
     @madctl = opt(o, :madctl, 0x70)
     @invert = opt(o, :invert, true)
-    @chunk_pixels = opt(o, :chunk_pixels, 64)
-    @scroll_mode = opt(o, :scroll_mode, :wrap)
+    @chunk_pixels = opt(o, :chunk_pixels, 127)
+    @chunk_pixels = 1 if @chunk_pixels < 1
+    @chunk_pixels = 127 if @chunk_pixels > 127
+    @scroll_mode = opt(o, :scroll_mode, :page)
     @line_width = @cols * @cw
     @line_width = @width if @line_width > @width
-    @line_buffer = pixel_run(@line_width * @ch, @bg)
-    @rendered_text = ""
+    @mask_stride = (@line_width + 7) / 8
+    @text_masks = "\0" * (@mask_stride * @ch)
+    @tail_pixels = @line_width & 7
+    @tail_buffer = "\0" * (@tail_pixels * 2)
+    build_pixel_pairs
     @lines = []
     i = 0
     while i < @rows
@@ -223,11 +230,12 @@ class ST7789DebugConsole
     return self if w <= 0 || h <= 0
     set_window(x, y, x + w - 1, y + h - 1)
     pixels = w * h
-    while pixels > 0
-      n = pixels < @chunk_pixels ? pixels : @chunk_pixels
-      data(pixel_run(n, color))
-      pixels -= n
-    end
+    n = pixels < @chunk_pixels ? pixels : @chunk_pixels
+    chunk = pixel_run(n, color)
+    count = pixels / n
+    rest = pixels - count * n
+    tail = rest > 0 ? pixel_run(rest, color) : nil
+    write_fill_chunks(chunk, count, tail)
     self
   end
 
@@ -239,7 +247,6 @@ class ST7789DebugConsole
     end
     @head = 0
     @line_count = 0
-    clear_rendered_text
     fill_rect(0, 0, @width, @height, @bg)
   end
 
@@ -249,19 +256,15 @@ class ST7789DebugConsole
   end
 
   def color(fg, bg = nil)
-    if !bg.nil? && bg != @bg
-      @bg = bg
-      fill_line_buffer(@bg)
-      @rendered_text = ""
-    else
-      clear_rendered_text
-    end
     @fg = fg
+    @bg = bg unless bg.nil?
+    build_pixel_pairs
     self
   end
 
   def write_line(text)
     text = normalize_text(text)
+    clear_text_page if @line_count >= @rows && @scroll_mode == :page
     row = @line_count < @rows ? @line_count : @head
     @lines[@head] = text
     @head += 1
@@ -292,9 +295,9 @@ class ST7789DebugConsole
 
   def draw_text_line(row, text)
     y = row * @ch
-    render_text_line(text)
+    render_text_masks(text)
     set_window(0, y, @line_width - 1, y + @ch - 1)
-    data(@line_buffer)
+    write_text_pixels
     self
   end
 
@@ -302,7 +305,11 @@ class ST7789DebugConsole
     fg = @fg if fg.nil?
     bg = @bg if bg.nil?
     set_window(x, y, x + @cw - 1, y + @ch - 1)
-    data(char_pixels(ch, fg, bg))
+    row = 0
+    while row < @ch
+      data(char_pixel_row(ch, row, fg, bg))
+      row += 1
+    end
     self
   end
 
@@ -326,6 +333,47 @@ class ST7789DebugConsole
     else
       @spi.write(v)
     end
+  end
+
+  def write_fill_chunks(chunk, count, tail)
+    @dc.write(1)
+    if @spi.respond_to?(:select)
+      @spi.select do |s|
+        write_fill_data(s, chunk, count, tail)
+      end
+    else
+      write_fill_data(@spi, chunk, count, tail)
+    end
+    self
+  end
+
+  def write_fill_data(spi, chunk, count, tail)
+    i = 0
+    while i < count
+      spi.write(chunk)
+      i += 1
+    end
+    spi.write(tail) unless tail.nil?
+    self
+  end
+
+  def clear_text_page
+    row = 0
+    while row < @line_count
+      text = @lines[row]
+      unless text.empty?
+        width = (text.bytesize - 1) * @cw + 5 * @text_scale
+        width = @line_width if width > @line_width
+        height = 7 * @text_scale
+        height = @ch if height > @ch
+        fill_rect(0, row * @ch, width, height, @bg)
+      end
+      @lines[row] = ""
+      row += 1
+    end
+    @head = 0
+    @line_count = 0
+    self
   end
 
   def u16_pair(a, b)
@@ -352,52 +400,80 @@ class ST7789DebugConsole
     s
   end
 
-  def char_pixels(ch, fg, bg)
-    s = "\0" * (@cw * @ch * 2)
-    row = 0
+  def char_pixel_row(ch, row, fg, bg)
+    s = "\0" * (@cw * 2)
+    source_row = row / @text_scale
+    fg_hi = (fg >> 8) & 255
+    fg_lo = fg & 255
+    bg_hi = (bg >> 8) & 255
+    bg_lo = bg & 255
+    col = 0
     pos = 0
-    while row < @ch
-      col = 0
-      while col < @cw
-        bits = col < 5 && row < 7 ? font_byte(ch, col) : 0
-        color = ((bits >> row) & 1) == 1 ? fg : bg
-        s.setbyte(pos, (color >> 8) & 255)
-        s.setbyte(pos + 1, color & 255)
-        pos += 2
-        col += 1
+    while col < @cw
+      source_col = col / @text_scale
+      on = false
+      if source_col < 5 && source_row < 7
+        bits = font_byte(ch, source_col)
+        on = ((bits >> source_row) & 1) == 1
       end
-      row += 1
+      s.setbyte(pos, on ? fg_hi : bg_hi)
+      s.setbyte(pos + 1, on ? fg_lo : bg_lo)
+      pos += 2
+      col += 1
     end
     s
   end
 
-  def render_text_line(text)
-    paint_text(@rendered_text, @bg)
-    paint_text(text, @fg)
-    @rendered_text = text
+  def build_pixel_pairs
+    @pixel_pairs = [] if @pixel_pairs.nil?
+    mask = 0
+    while mask < 4
+      s = @pixel_pairs[mask]
+      if s.nil?
+        s = "\0" * 4
+        @pixel_pairs << s
+      end
+      pixel = 0
+      while pixel < 2
+        color = (mask & (1 << (1 - pixel))) == 0 ? @bg : @fg
+        pos = pixel * 2
+        s.setbyte(pos, (color >> 8) & 255)
+        s.setbyte(pos + 1, color & 255)
+        pixel += 1
+      end
+      mask += 1
+    end
+    self
   end
 
-  def paint_text(text, color)
-    hi = (color >> 8) & 255
-    lo = color & 255
+  def render_text_masks(text)
+    pos = 0
+    while pos < @text_masks.bytesize
+      @text_masks.setbyte(pos, 0)
+      pos += 1
+    end
+
     cell = 0
     while cell < @cols
       ch = text.getbyte(cell)
       break if ch.nil?
       pixel_col = 0
-      while pixel_col < @cw && pixel_col < 5
+      while pixel_col < @cw
+        source_col = pixel_col / @text_scale
+        break if source_col >= 5
         x = cell * @cw + pixel_col
         break if x >= @line_width
-        bits = font_byte(ch, pixel_col)
-        glyph_row = 0
-        while bits != 0 && glyph_row < @ch && glyph_row < 7
-          if (bits & 1) == 1
-            pos = (glyph_row * @line_width + x) * 2
-            @line_buffer.setbyte(pos, hi)
-            @line_buffer.setbyte(pos + 1, lo)
+        bits = font_byte(ch, source_col)
+        pixel_row = 0
+        while pixel_row < @ch
+          source_row = pixel_row / @text_scale
+          break if source_row >= 7
+          if ((bits >> source_row) & 1) == 1
+            pos = pixel_row * @mask_stride + (x >> 3)
+            bit = 1 << (7 - (x & 7))
+            @text_masks.setbyte(pos, @text_masks.getbyte(pos) | bit)
           end
-          bits >>= 1
-          glyph_row += 1
+          pixel_row += 1
         end
         pixel_col += 1
       end
@@ -406,21 +482,87 @@ class ST7789DebugConsole
     self
   end
 
-  def clear_rendered_text
-    paint_text(@rendered_text, @bg) unless @rendered_text.empty?
-    @rendered_text = ""
-  end
-
-  def fill_line_buffer(color)
-    hi = (color >> 8) & 255
-    lo = color & 255
-    pos = 0
-    while pos < @line_buffer.bytesize
-      @line_buffer.setbyte(pos, hi)
-      @line_buffer.setbyte(pos + 1, lo)
-      pos += 2
+  def write_text_pixels
+    @dc.write(1)
+    if @spi.respond_to?(:select)
+      @spi.select do |s|
+        write_mask_rows(s)
+      end
+    else
+      write_mask_rows(@spi)
     end
     self
+  end
+
+  def write_mask_rows(spi)
+    row = 0
+    full_bytes = @line_width >> 3
+    while row < @ch
+      pos = row * @mask_stride
+      remaining = full_bytes
+      while remaining >= 4
+        write_mask4(spi, pos)
+        pos += 4
+        remaining -= 4
+      end
+      if remaining >= 2
+        write_mask2(spi, pos)
+        pos += 2
+        remaining -= 2
+      end
+      write_mask1(spi, pos) if remaining == 1
+      write_tail_pixels(spi, row) if @tail_pixels > 0
+      row += 1
+    end
+    self
+  end
+
+  def write_mask4(spi, pos)
+    p = @pixel_pairs
+    a = @text_masks
+    b0 = a.getbyte(pos)
+    b1 = a.getbyte(pos + 1)
+    b2 = a.getbyte(pos + 2)
+    b3 = a.getbyte(pos + 3)
+    spi.write(
+      p[(b0 >> 6) & 3], p[(b0 >> 4) & 3], p[(b0 >> 2) & 3], p[b0 & 3],
+      p[(b1 >> 6) & 3], p[(b1 >> 4) & 3], p[(b1 >> 2) & 3], p[b1 & 3],
+      p[(b2 >> 6) & 3], p[(b2 >> 4) & 3], p[(b2 >> 2) & 3], p[b2 & 3],
+      p[(b3 >> 6) & 3], p[(b3 >> 4) & 3], p[(b3 >> 2) & 3], p[b3 & 3]
+    )
+  end
+
+  def write_mask2(spi, pos)
+    p = @pixel_pairs
+    a = @text_masks
+    b0 = a.getbyte(pos)
+    b1 = a.getbyte(pos + 1)
+    spi.write(
+      p[(b0 >> 6) & 3], p[(b0 >> 4) & 3], p[(b0 >> 2) & 3], p[b0 & 3],
+      p[(b1 >> 6) & 3], p[(b1 >> 4) & 3], p[(b1 >> 2) & 3], p[b1 & 3]
+    )
+  end
+
+  def write_mask1(spi, pos)
+    p = @pixel_pairs
+    b = @text_masks.getbyte(pos)
+    spi.write(
+      p[(b >> 6) & 3], p[(b >> 4) & 3], p[(b >> 2) & 3], p[b & 3]
+    )
+  end
+
+  def write_tail_pixels(spi, row)
+    mask = @text_masks.getbyte(row * @mask_stride + @mask_stride - 1)
+    pixel = 0
+    pos = 0
+    while pixel < @tail_pixels
+      color = (mask & (1 << (7 - pixel))) == 0 ? @bg : @fg
+      @tail_buffer.setbyte(pos, (color >> 8) & 255)
+      @tail_buffer.setbyte(pos + 1, color & 255)
+      pixel += 1
+      pos += 2
+    end
+    spi.write(@tail_buffer)
   end
 
   def byte_string(value)
@@ -431,7 +573,7 @@ class ST7789DebugConsole
 
   def font_byte(ch, col)
     ch = 63 if ch < 32 || ch > 127
-    FONT[(ch - 32) * 5 + col]
+    FONT.getbyte((ch - 32) * 5 + col)
   end
 
   def normalize_text(text)
