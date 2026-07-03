@@ -1,0 +1,21 @@
+class GC9A01Display
+  def self.configure: (Integer spi_host, Integer sclk, Integer mosi, Integer cs, Integer dc, Integer rst, Integer bl, Integer frequency) -> bool
+end
+
+class GC9A01Speedometer
+  def initialize: () -> void
+  def render: (Numeric speed_kmh, Numeric cadence_rpm) -> Numeric
+  def demo_step: () -> Numeric
+  def demo: (?Integer frame_ms) -> bot
+  def brightness=: (Integer value) -> Integer
+  def initialized?: () -> bool
+end
+
+class GC9A01SimpleSpeedometer
+  def initialize: () -> void
+  def render: (Numeric speed_kmh) -> Numeric
+  def demo_step: () -> Numeric
+  def demo: (?Integer frame_ms) -> bot
+  def brightness=: (Integer value) -> Integer
+  def initialized?: () -> bool
+end

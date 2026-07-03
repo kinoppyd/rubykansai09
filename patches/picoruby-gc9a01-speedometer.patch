@@ -1,0 +1,98 @@
+diff --git a/build_config/r2p2-femtoruby-pico.rb b/build_config/r2p2-femtoruby-pico.rb
+index 7232d317..8cefe847 100644
+--- a/build_config/r2p2-femtoruby-pico.rb
++++ b/build_config/r2p2-femtoruby-pico.rb
+@@ -47,4 +47,5 @@ MRuby::CrossBuild.new("r2p2-femtoruby-pico") do |conf|
+   conf.gembox "peripheral_utils"
+   conf.gem core: 'picoruby-psg'
+   conf.gem core: 'picoruby-keyboard'
++  conf.gem core: 'picoruby-gc9a01-speedometer'
+ end
+diff --git a/build_config/r2p2-picoruby-pico2.rb b/build_config/r2p2-picoruby-pico2.rb
+index 559fe4a6..11cd277b 100644
+--- a/build_config/r2p2-picoruby-pico2.rb
++++ b/build_config/r2p2-picoruby-pico2.rb
+@@ -56,4 +56,5 @@ MRuby::CrossBuild.new("r2p2-picoruby-pico2") do |conf|
+   conf.gem core: 'picoruby-psg'
+   conf.gem core: 'picoruby-shinonome'
+   conf.gem core: 'picoruby-keyboard'
++  conf.gem core: 'picoruby-gc9a01-speedometer'
+ end
+diff --git a/build_config/r2p2-picoruby-pico2_w.rb b/build_config/r2p2-picoruby-pico2_w.rb
+index 57dfcd4b..5c3dae94 100644
+--- a/build_config/r2p2-picoruby-pico2_w.rb
++++ b/build_config/r2p2-picoruby-pico2_w.rb
+@@ -63,4 +63,5 @@ MRuby::CrossBuild.new("r2p2-picoruby-pico2_w") do |conf|
+   conf.gem core: 'picoruby-ble'
+   conf.gem core: 'picoruby-ble-uart'
+   conf.gem core: 'picoruby-keyboard'
++  conf.gem core: 'picoruby-gc9a01-speedometer'
+ end
+diff --git a/mrbgems/picoruby-r2p2/cmake/CMakeLists.txt b/mrbgems/picoruby-r2p2/cmake/CMakeLists.txt
+index 46e3e854..9651ade0 100644
+--- a/mrbgems/picoruby-r2p2/cmake/CMakeLists.txt
++++ b/mrbgems/picoruby-r2p2/cmake/CMakeLists.txt
+@@ -15,6 +15,16 @@ set (R2P2_BUILDDATE ${CMAKE_BUILDDATE})
+ set (R2P2_REVISION  ${CMAKE_REVISION})
+ 
+ project("${R2P2_NAME}-${R2P2_VERSION}-${R2P2_BOARD_NAME}-${R2P2_BUILDDATE}-${R2P2_REVISION}")
++set(LOVYANGFX_PATH "${PICORUBY_ROOT}/../LovyanGFX" CACHE PATH
++  "Path to a LovyanGFX checkout")
++if(EXISTS "${PICORUBY_ROOT}/mrbgems/picoruby-gc9a01-speedometer")
++  if(NOT EXISTS "${LOVYANGFX_PATH}/CMakeLists.txt")
++    message(FATAL_ERROR
++      "picoruby-gc9a01-speedometer requires LovyanGFX at ${LOVYANGFX_PATH}")
++  endif()
++  add_subdirectory(${LOVYANGFX_PATH} ${CMAKE_BINARY_DIR}/LovyanGFX)
++  set(PICORB_HAS_GC9A01_SPEEDOMETER ON)
++endif()
+ 
+ add_compile_options(-Wall
+   # int != int32_t as far as the compiler is concerned because gcc has int32_t as long int
+@@ -41,7 +51,9 @@ endif()
+ 
+ file(GLOB SOURCE_FILES CONFIGURE_DEPENDS
+   ${PICORUBY_ROOT}/mrbgems/*/ports/rp2040/*.c
++  ${PICORUBY_ROOT}/mrbgems/*/ports/rp2040/*.cpp
+   ${PICORUBY_ROOT}/mrbgems/*/ports/common/*.c
++  ${PICORUBY_ROOT}/mrbgems/*/ports/common/*.cpp
+ )
+ if(USE_WIFI)
+   add_compile_definitions(USE_WIFI=1)
+@@ -160,6 +172,26 @@ option(PICORUBY_PSG_PWM_DMA "Use DMA for PSG PWM output" ON)
+ if(PICORUBY_PSG_PWM_DMA)
+   target_compile_definitions(${PROJECT_NAME} PRIVATE PSG_PWM_DMA=1)
+ endif()
++if(PICORB_HAS_GC9A01_SPEEDOMETER)
++  set(GC9A01_SPI_PORT 0 CACHE STRING "GC9A01 SPI controller: 0 or 1")
++  set(GC9A01_PIN_SCLK 18 CACHE STRING "GC9A01 SCLK GPIO")
++  set(GC9A01_PIN_MOSI 19 CACHE STRING "GC9A01 MOSI GPIO")
++  set(GC9A01_PIN_CS 17 CACHE STRING "GC9A01 CS GPIO")
++  set(GC9A01_PIN_DC 20 CACHE STRING "GC9A01 DC GPIO")
++  set(GC9A01_PIN_RST 21 CACHE STRING "GC9A01 RST GPIO")
++  set(GC9A01_PIN_BL 22 CACHE STRING "GC9A01 backlight GPIO; -1 disables it")
++  set(GC9A01_SPI_FREQUENCY 40000000 CACHE STRING "GC9A01 write frequency")
++  target_compile_definitions(${PROJECT_NAME} PRIVATE
++    GC9A01_SPI_PORT=${GC9A01_SPI_PORT}
++    GC9A01_PIN_SCLK=${GC9A01_PIN_SCLK}
++    GC9A01_PIN_MOSI=${GC9A01_PIN_MOSI}
++    GC9A01_PIN_CS=${GC9A01_PIN_CS}
++    GC9A01_PIN_DC=${GC9A01_PIN_DC}
++    GC9A01_PIN_RST=${GC9A01_PIN_RST}
++    GC9A01_PIN_BL=${GC9A01_PIN_BL}
++    GC9A01_SPI_FREQUENCY=${GC9A01_SPI_FREQUENCY}
++  )
++endif()
+ 
+ target_link_libraries(${PROJECT_NAME} PRIVATE
+   pico_stdlib
+@@ -184,6 +216,9 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
+   hardware_dma
+   mruby
+ )
++if(PICORB_HAS_GC9A01_SPEEDOMETER)
++  target_link_libraries(${PROJECT_NAME} PRIVATE LovyanGFX)
++endif()
+ 
+ # Sleep functionality for both RP2040 and RP2350
+ target_link_libraries(${PROJECT_NAME} PRIVATE

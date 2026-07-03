@@ -148,3 +148,13 @@ RP2040向けは `femtoruby` VMを使います。
 ```sh
 ruby -S rake r2p2:femtoruby:pico:prod
 ```
+
+GC9A01 mrbgemを組み込んだ今回のRaspberry Pi Pico向け生成物は次の場所です。
+
+```text
+tmp/picoruby/build/r2p2/femtoruby/pico/prod/R2P2-FEMTORUBY-4.0.0-PICO-20260703-bc559024.uf2
+```
+
+このcheckoutではRP2040 buildでも`mrc_common.h`のinclude path回避設定が必要です。
+上記のPico 2向けCMakeコマンドにあるCPU指定を`-mcpu=cortex-m0plus -mthumb`
+へ変更し、build directoryを`build/r2p2/femtoruby/pico/prod`にしてください。
