@@ -40,6 +40,10 @@ module BLETransport
       @runtime && @runtime.connected?
     end
 
+    def event_queue_dropped
+      @runtime ? @runtime.event_queue_dropped : 0
+    end
+
     def start(timeout_ms = nil)
       @runtime.start(timeout_ms)
     end

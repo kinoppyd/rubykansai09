@@ -38,21 +38,23 @@ failure 0 です。これは encode と合成入力の確認であり、Pico 2 W
 - [x] 1個の MPU6050 を wheel と crank の両方の検出器へ同時入力する現在の既定値を
   廃止する。wheel と crank は別の回転体なので、combined sensor には2個の物理センサ、
   または別方式の回転入力が必要。
-- [ ] MPU6050 の固定位置、検出軸、正方向、I2C unit、SDA/SCL pin、電源、pull-up を固定する。
-- [ ] MPU6050 は最大 gyro range が ±2000 dps、accelerometer range が ±16 g であることを
+- [x] 右クランク固定、x軸正方向、I2C1、GPIO2/3、3.3 V、必要時4.7 kΩ pull-upを
+  実行アプリの既定構成として固定する。
+- [x] MPU6050 は最大 gyro range が ±2000 dps、accelerometer range が ±16 g であることを
   設計条件にする。2.1 m 周長の wheel では 2000 dps は概算約42 km/hに相当し、
   wheel 外周寄りでは遠心加速度も早い段階で ±16 g を超える。wheel 用途は実走速度域で
   飽和しない取付半径と検出方式を確認し、成立しなければ Hall/reed sensor または
   ±4000 dps / ±32 g 以上の IMU を選ぶ。
 - [x] `WHO_AM_I` の確認、I2C read error、短いread、センサ未接続を起動時エラーとして扱う。
-- [ ] 静止状態で gyro calibration を行い、校正中は advertising/measurement を開始しない。
+- [x] 静止状態で gyro calibration を行い、校正中は advertising/measurement を開始しない。
 
 ## P0: 時刻、回転イベント、counter を正しくする
 
 - [x] `MPU6050BLECSC#tick` の引数省略時に20 msずつ進める擬似時刻を実機経路から除く。
   `Machine.uptime_us` または `Machine.board_millis` を1回取得し、MPU sample、回転イベント、
   notification scheduler の全てへ同じ monotonic time を渡す。
-- [ ] sampling loop を目標周期（初期値5〜10 ms）へ pacing し、実測 `dt` で gyro を積分する。
+- [x] sampling loop を10 ms周期へ pacingし、同じmonotonic timestampから実測 `dt` と
+  BLE event timeを生成する。overrunと最大loop時間はreleaseで無効な集計logから確認できる。
   BLE poll と I2C sampling の最悪遅延・jitter も記録する。
 - [x] uptime counter の wrap をまたぐ差分計算をテストする。
 - [x] Last Wheel/Crank Event Time は「最後に実際の1回転を検出した時刻」だけで更新し、
@@ -121,14 +123,14 @@ failure 0 です。これは encode と合成入力の確認であり、Pico 2 W
 
 ## P0: 実行可能なセンサアプリを追加する
 
-- [ ] `examples/mpu_6050_ble_csc_sensor.rb` を作り、board配線、sensor mode、axis、direction、
+- [x] `examples/mpu_6050_ble_csc_sensor.rb` を作り、board配線、sensor mode、axis、direction、
   sample period、notify period、sensor locationを先頭の定数で設定できるようにする。
-- [ ] 起動順を I2C初期化、MPU identity確認、gyro calibration、GATT構築、HCI power on、
+- [x] 起動順を I2C初期化、MPU identity確認、gyro calibration、GATT構築、HCI power on、
   advertising開始の順にする。
-- [ ] main loopで monotonic time取得、MPU sample、rotation detector、CSC state更新、BLE poll、
+- [x] main loopで monotonic time取得、MPU sample、rotation detector、CSC state更新、BLE poll、
   sleepを行い、長時間にわたり一時配列・Hash・補間文字列を生成しない。
-- [ ] USB serial logは状態遷移と集計値だけに制限し、release modeで無効化できるようにする。
-- [ ] READMEにPico 2 WとMPU6050の配線、R2P2への`.mrb`配置、起動方法、サイコン側のwheel
+- [x] USB serial logは状態遷移と集計値だけに制限し、`DEBUG_LOG = false`で無効化する。
+- [x] READMEにPico 2 WとMPU6050の配線、R2P2への`.mrb`配置、起動方法、サイコン側のwheel
   circumference設定を記載する。
 
 ## P1: advertising、補助service、電力
@@ -177,7 +179,7 @@ ELF `text=2,344,988 byte`、`bss=443,328 byte` でした。これはCSCP専用fi
   bonding済みdeviceでfirmware更新等によりFeatureを変更可能にする場合だけ、CSCS 1.0.1の
   条件に従いIndicate propertyとCCCD、再接続後のindicationを追加する。
 - [ ] SC Control Pointの全response、並行procedure、indication timeoutをテストする。
-- [ ] sourceを`.mrb`へcompileし、PicoRuby VMでloadできるsmoke testを実施する。
+- [x] 全7 sourceを`mrbc-prism`で個別に`.mrb`へcompileするsmoke testを実施する。
 
 ### 実機 / 相互接続
 

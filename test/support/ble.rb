@@ -41,6 +41,10 @@ class BLE
     false
   end
 
+  def event_queue_dropped
+    0
+  end
+
   class GattDatabase
     class << self
       attr_accessor :last
