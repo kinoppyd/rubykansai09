@@ -1,0 +1,704 @@
+diff --git a/mrbgems/picoruby-ble/README.md b/mrbgems/picoruby-ble/README.md
+index 5cbe1fcb..8c9a2ee7 100644
+--- a/mrbgems/picoruby-ble/README.md
++++ b/mrbgems/picoruby-ble/README.md
+@@ -82,8 +82,11 @@ end
+ 
+ ### Peripheral Methods
+ 
+-- `peripheral_advertise(ad_data)` - Start advertising
++- `peripheral_advertise(ad_data, min_interval = 800, max_interval = 800)` - Start advertising; intervals use 0.625 ms units
+ - `notify(handle)` - Send notification
++- `indicate(handle)` - Send indication and return the BTstack status code
++- `csc_server_init(wheel, crank, sensor_location)` - Initialize the native BTstack CSCS server
++- `csc_server_update(wheel_delta, wheel_time, crank_delta, crank_time)` - Update and notify CSCS values
+ - `pop_write_value(handle)` - Get value written by client
+ - `push_read_value(handle, value)` - Set value for read request
+ 
+diff --git a/mrbgems/picoruby-ble/include/ble_peripheral.h b/mrbgems/picoruby-ble/include/ble_peripheral.h
+index 6b0875bc..5739345a 100644
+--- a/mrbgems/picoruby-ble/include/ble_peripheral.h
++++ b/mrbgems/picoruby-ble/include/ble_peripheral.h
+@@ -8,14 +8,18 @@
+ extern "C" {
+ #endif
+ 
+-void BLE_peripheral_advertise(uint8_t *adv_data, uint8_t adv_data_len, bool connectable);
++void BLE_peripheral_advertise(uint8_t *adv_data, uint8_t adv_data_len, bool connectable,
++                              uint16_t adv_int_min, uint16_t adv_int_max);
+ void BLE_peripheral_stop_advertise(void);
+ void BLE_peripheral_notify(uint16_t att_handle);
++uint8_t BLE_peripheral_indicate(uint16_t att_handle);
+ void BLE_peripheral_request_can_send_now_event(void);
++void BLE_peripheral_csc_server_init(bool wheel_supported, bool crank_supported, uint8_t sensor_location);
++void BLE_peripheral_csc_server_update(int32_t wheel_revolutions, uint16_t wheel_time,
++                                      uint16_t crank_revolutions, uint16_t crank_time);
+ 
+ #ifdef __cplusplus
+ }
+ #endif
+ 
+ #endif /* BLE_PERIPHERAL_DEFINED_H_ */
+-
+diff --git a/mrbgems/picoruby-ble/ports/rp2040/ble.c b/mrbgems/picoruby-ble/ports/rp2040/ble.c
+index 13de0ac9..c8adab5b 100644
+--- a/mrbgems/picoruby-ble/ports/rp2040/ble.c
++++ b/mrbgems/picoruby-ble/ports/rp2040/ble.c
+@@ -52,9 +52,22 @@ packet_handler(uint8_t packet_type, uint16_t channel, uint8_t *packet, uint16_t
+         case BTSTACK_EVENT_STATE:
+         case HCI_EVENT_DISCONNECTION_COMPLETE:
+         case ATT_EVENT_MTU_EXCHANGE_COMPLETE:
++        case ATT_EVENT_HANDLE_VALUE_INDICATION_COMPLETE:
+         case ATT_EVENT_CAN_SEND_NOW:
+           BLE_push_event(packet, size);
+           break;
++        case HCI_EVENT_LE_META: {
++          uint8_t subevent = hci_event_le_meta_get_subevent_code(packet);
++          if ((subevent == HCI_SUBEVENT_LE_CONNECTION_COMPLETE) ||
++              (subevent == HCI_SUBEVENT_LE_ENHANCED_CONNECTION_COMPLETE_V1) ||
++              (subevent == HCI_SUBEVENT_LE_ENHANCED_CONNECTION_COMPLETE_V2)) {
++            if (packet[3] == ERROR_CODE_SUCCESS) {
++              con_handle = little_endian_read_16(packet, 4);
++            }
++            BLE_push_event(packet, size);
++          }
++          break;
++        }
+         case SM_EVENT_JUST_WORKS_REQUEST:
+           sm_just_works_confirm(sm_event_just_works_request_get_handle(packet));
+           break;
+@@ -247,4 +260,3 @@ BLE_write_characteristic_descriptor_using_descriptor_handle(uint16_t conn_handle
+ {
+   return gatt_client_write_characteristic_descriptor_using_descriptor_handle(&packet_handler, conn_handle, descriptor_handle, size, (uint8_t *)data);
+ }
+-
+diff --git a/mrbgems/picoruby-ble/ports/rp2040/ble_peripheral.c b/mrbgems/picoruby-ble/ports/rp2040/ble_peripheral.c
+index 5bb67e9d..55f28cbb 100644
+--- a/mrbgems/picoruby-ble/ports/rp2040/ble_peripheral.c
++++ b/mrbgems/picoruby-ble/ports/rp2040/ble_peripheral.c
+@@ -5,6 +5,7 @@
+ #include "../../include/ble_peripheral.h"
+ 
+ #include "btstack.h"
++#include "ble/gatt-service/cycling_speed_and_cadence_service_server.h"
+ #include "pico/cyw43_arch.h"
+ #include "pico/btstack_cyw43.h"
+ #include "pico/stdlib.h"
+@@ -20,11 +21,10 @@ BLE_peripheral_stop_advertise(void)
+ }
+ 
+ void
+-BLE_peripheral_advertise(uint8_t *adv_data, uint8_t adv_data_len, bool connectable)
++BLE_peripheral_advertise(uint8_t *adv_data, uint8_t adv_data_len, bool connectable,
++                         uint16_t adv_int_min, uint16_t adv_int_max)
+ {
+   // setup advertisements
+-  uint16_t adv_int_min = 800;
+-  uint16_t adv_int_max = 800;
+   uint8_t adv_type = connectable ? 0 : 2;
+   uint8_t channel_map = 0x07; // Use all three broadcast channels.
+   uint8_t filter_policy = 0x00; // None.
+@@ -44,9 +44,40 @@ BLE_peripheral_notify(uint16_t att_handle)
+   att_server_notify(con_handle, att_handle, read_value.data, read_value.size);
+ }
+ 
++uint8_t
++BLE_peripheral_indicate(uint16_t att_handle)
++{
++  BLE_read_value_t read_value = { .att_handle = att_handle, .data = NULL, .size = 0 };
++  if (BLE_read_data(&read_value) < 0) return ERROR_CODE_COMMAND_DISALLOWED;
++  if (read_value.size == 0) return ERROR_CODE_COMMAND_DISALLOWED;
++  return att_server_indicate(con_handle, att_handle, read_value.data, read_value.size);
++}
++
+ void
+ BLE_peripheral_request_can_send_now_event(void)
+ {
+   att_server_request_can_send_now_event(con_handle);
+ }
+ 
++void
++BLE_peripheral_csc_server_init(bool wheel_supported, bool crank_supported, uint8_t sensor_location)
++{
++  if (sensor_location >= CSC_SERVICE_SENSOR_LOCATION_RESERVED) {
++    sensor_location = CSC_SERVICE_SENSOR_LOCATION_OTHER;
++  }
++  cycling_speed_and_cadence_service_server_init(
++    1u << sensor_location,
++    0,
++    wheel_supported ? 1 : 0,
++    crank_supported ? 1 : 0
++  );
++}
++
++void
++BLE_peripheral_csc_server_update(int32_t wheel_revolutions, uint16_t wheel_time,
++                                 uint16_t crank_revolutions, uint16_t crank_time)
++{
++  cycling_speed_and_cadence_service_server_update_values(
++    wheel_revolutions, wheel_time, crank_revolutions, crank_time
++  );
++}
+diff --git a/mrbgems/picoruby-ble/sig/ble.rbs b/mrbgems/picoruby-ble/sig/ble.rbs
+index 35936eab..e601b133 100644
+--- a/mrbgems/picoruby-ble/sig/ble.rbs
++++ b/mrbgems/picoruby-ble/sig/ble.rbs
+@@ -81,6 +81,7 @@ class BLE
+   def hci_power_control: (Integer power_mode) -> 0
+   def start: (?(Integer | nil) timeout_ms, ?(Symbol | nil)) -> Integer
+   def pop_packet: () -> (String | nil)
++  def event_queue_dropped: () -> Integer
+   def packet_callback: (String) -> void
+   def pop_heartbeat: () -> bool
+   def heartbeat_callback: () -> void
+@@ -148,10 +149,14 @@ class BLE
+   def advertise: (String | nil) -> 0
+ 
+   # class Peripheral < BLE
+-    def peripheral_advertise: (String | nil) -> 0
++    def peripheral_advertise: (String | nil, ?Integer, ?Integer) -> 0
+     def notify: (Integer) -> 0
+ 
++    def indicate: (Integer) -> Integer
++
+     def request_can_send_now_event: () -> 0
++    def csc_server_init: (Integer, Integer, Integer) -> 0
++    def csc_server_update: (Integer, Integer, Integer, Integer) -> 0
+   # end
+ 
+   # class Broadcaster < BLE
+diff --git a/mrbgems/picoruby-ble/src/ble.c b/mrbgems/picoruby-ble/src/ble.c
+index a72b21d1..4e15424e 100644
+--- a/mrbgems/picoruby-ble/src/ble.c
++++ b/mrbgems/picoruby-ble/src/ble.c
+@@ -12,10 +12,21 @@
+ static bool packet_mutex = false;
+ static bool write_values_mutex = false;
+ static bool heatbeat_flag = false;
+-static bool packet_flag = false;
+ 
+-static uint8_t *packet = NULL;
+-static uint16_t packet_size = 0;
++/* HCI event length is encoded in one byte plus the two-byte event header. */
++#define BLE_EVENT_QUEUE_RECORD_CAPACITY 4
++#define BLE_EVENT_QUEUE_BYTE_CAPACITY 512
++#define BLE_EVENT_MAX_SIZE 257
++
++static uint8_t event_queue_data[BLE_EVENT_QUEUE_BYTE_CAPACITY];
++static uint16_t event_queue_sizes[BLE_EVENT_QUEUE_RECORD_CAPACITY];
++static uint16_t event_queue_data_head = 0;
++static uint16_t event_queue_data_tail = 0;
++static uint16_t event_queue_bytes = 0;
++static uint8_t event_queue_record_head = 0;
++static uint8_t event_queue_record_tail = 0;
++static uint8_t event_queue_count = 0;
++static uint32_t event_queue_dropped = 0;
+ 
+ #if defined(PICORB_VM_MRUBY)
+ 
+diff --git a/mrbgems/picoruby-ble/src/mruby/ble.c b/mrbgems/picoruby-ble/src/mruby/ble.c
+index ce314f54..3f52005c 100644
+--- a/mrbgems/picoruby-ble/src/mruby/ble.c
++++ b/mrbgems/picoruby-ble/src/mruby/ble.c
+@@ -11,15 +11,29 @@ static mrb_value read_values;
+ void
+ BLE_push_event(uint8_t *data, uint16_t size)
+ {
+-  if (packet_mutex) return;
++  if (packet_mutex || size > BLE_EVENT_MAX_SIZE) {
++    event_queue_dropped++;
++    return;
++  }
+   packet_mutex = true;
+-  packet_flag = true;
+-  packet_size = size;
+-  if (packet != NULL) {
+-    mrb_free(_mrb, packet);
++  while ((event_queue_count == BLE_EVENT_QUEUE_RECORD_CAPACITY) ||
++         ((BLE_EVENT_QUEUE_BYTE_CAPACITY - event_queue_bytes) < size)) {
++    uint16_t dropped_size = event_queue_sizes[event_queue_record_tail];
++    event_queue_data_tail = (uint16_t)((event_queue_data_tail + dropped_size) % BLE_EVENT_QUEUE_BYTE_CAPACITY);
++    event_queue_bytes -= dropped_size;
++    event_queue_record_tail = (uint8_t)((event_queue_record_tail + 1u) % BLE_EVENT_QUEUE_RECORD_CAPACITY);
++    event_queue_count--;
++    event_queue_dropped++;
+   }
+-  packet = mrb_malloc(_mrb, packet_size);
+-  memcpy(packet, data, packet_size);
++  uint16_t first = BLE_EVENT_QUEUE_BYTE_CAPACITY - event_queue_data_head;
++  if (first > size) first = size;
++  memcpy(&event_queue_data[event_queue_data_head], data, first);
++  if (first < size) memcpy(event_queue_data, &data[first], size - first);
++  event_queue_sizes[event_queue_record_head] = size;
++  event_queue_data_head = (uint16_t)((event_queue_data_head + size) % BLE_EVENT_QUEUE_BYTE_CAPACITY);
++  event_queue_bytes += size;
++  event_queue_record_head = (uint8_t)((event_queue_record_head + 1u) % BLE_EVENT_QUEUE_RECORD_CAPACITY);
++  event_queue_count++;
+   packet_mutex = false;
+ }
+ 
+@@ -75,16 +89,28 @@ static mrb_value
+ mrb_pop_packet(mrb_state *mrb, mrb_value self)
+ {
+   mrb_value packet_value = mrb_nil_value();
+-  if (packet_mutex || !packet_flag) return packet_value;
++  if (packet_mutex || event_queue_count == 0) return packet_value;
+   packet_mutex = true;
+-  packet_flag = false;
+-  packet_value = mrb_str_new(mrb, (const char *)packet, packet_size);
+-  mrb_free(mrb, packet);
+-  packet = NULL;
++  uint16_t size = event_queue_sizes[event_queue_record_tail];
++  packet_value = mrb_str_new(mrb, NULL, size);
++  uint16_t first = BLE_EVENT_QUEUE_BYTE_CAPACITY - event_queue_data_tail;
++  if (first > size) first = size;
++  memcpy(RSTRING_PTR(packet_value), &event_queue_data[event_queue_data_tail], first);
++  if (first < size) memcpy(&RSTRING_PTR(packet_value)[first], event_queue_data, size - first);
++  event_queue_data_tail = (uint16_t)((event_queue_data_tail + size) % BLE_EVENT_QUEUE_BYTE_CAPACITY);
++  event_queue_bytes -= size;
++  event_queue_record_tail = (uint8_t)((event_queue_record_tail + 1u) % BLE_EVENT_QUEUE_RECORD_CAPACITY);
++  event_queue_count--;
+   packet_mutex = false;
+   return packet_value;
+ }
+ 
++static mrb_value
++mrb_event_queue_dropped(mrb_state *mrb, mrb_value self)
++{
++  return mrb_fixnum_value((mrb_int)event_queue_dropped);
++}
++
+ static mrb_value
+ mrb_pop_write_value(mrb_state *mrb, mrb_value self)
+ {
+@@ -187,6 +213,7 @@ mrb_picoruby_ble_gem_init(mrb_state* mrb)
+   mrb_define_method_id(mrb, class_BLE, MRB_SYM(push_read_value), mrb_push_read_value, MRB_ARGS_REQ(2));
+   mrb_define_method_id(mrb, class_BLE, MRB_SYM(pop_heartbeat), mrb_pop_heartbeat, MRB_ARGS_NONE());
+   mrb_define_method_id(mrb, class_BLE, MRB_SYM(pop_packet), mrb_pop_packet, MRB_ARGS_NONE());
++  mrb_define_method(mrb, class_BLE, "event_queue_dropped", mrb_event_queue_dropped, MRB_ARGS_NONE());
+ 
+   mrb_init_class_BLE_Peripheral(mrb, class_BLE);
+   mrb_init_class_BLE_Broadcaster(mrb, class_BLE);
+diff --git a/mrbgems/picoruby-ble/src/mruby/ble_broadcaster.c b/mrbgems/picoruby-ble/src/mruby/ble_broadcaster.c
+index e5b582e4..ef96ea87 100644
+--- a/mrbgems/picoruby-ble/src/mruby/ble_broadcaster.c
++++ b/mrbgems/picoruby-ble/src/mruby/ble_broadcaster.c
+@@ -11,7 +11,7 @@ mrb_advertise(mrb_state *mrb, mrb_value self)
+   if (mrb_nil_p(adv_data)) {
+     BLE_peripheral_stop_advertise();
+   } else if (mrb_string_p(adv_data)) {
+-    BLE_peripheral_advertise((uint8_t *)RSTRING_PTR(adv_data), RSTRING_LEN(adv_data), false);
++    BLE_peripheral_advertise((uint8_t *)RSTRING_PTR(adv_data), RSTRING_LEN(adv_data), false, 800, 800);
+   } else {
+     mrb_raise(mrb, E_ARGUMENT_ERROR, "advertise data must be a string");
+   }
+diff --git a/mrbgems/picoruby-ble/src/mruby/ble_peripheral.c b/mrbgems/picoruby-ble/src/mruby/ble_peripheral.c
+index 32a998ad..059db4d8 100644
+--- a/mrbgems/picoruby-ble/src/mruby/ble_peripheral.c
++++ b/mrbgems/picoruby-ble/src/mruby/ble_peripheral.c
+@@ -6,11 +6,14 @@ static mrb_value
+ mrb_advertise(mrb_state *mrb, mrb_value self)
+ {
+   mrb_value adv_data;
+-  mrb_get_args(mrb, "o", &adv_data);
++  mrb_int adv_int_min = 800;
++  mrb_int adv_int_max = 800;
++  mrb_get_args(mrb, "o|ii", &adv_data, &adv_int_min, &adv_int_max);
+   if (mrb_nil_p(adv_data)) {
+     BLE_peripheral_stop_advertise();
+   } else if (mrb_string_p(adv_data)) {
+-    BLE_peripheral_advertise((uint8_t *)RSTRING_PTR(adv_data), RSTRING_LEN(adv_data), true);
++    BLE_peripheral_advertise((uint8_t *)RSTRING_PTR(adv_data), RSTRING_LEN(adv_data), true,
++                             (uint16_t)adv_int_min, (uint16_t)adv_int_max);
+   } else {
+     mrb_raise(mrb, E_TYPE_ERROR, "wrong type of adv_data");
+   }
+@@ -26,6 +29,14 @@ mrb_notify(mrb_state *mrb, mrb_value self)
+   return mrb_fixnum_value(0);
+ }
+ 
++static mrb_value
++mrb_indicate(mrb_state *mrb, mrb_value self)
++{
++  mrb_int att_handle;
++  mrb_get_args(mrb, "i", &att_handle);
++  return mrb_fixnum_value(BLE_peripheral_indicate((uint16_t)att_handle));
++}
++
+ static mrb_value
+ mrb_request_can_send_now_event(mrb_state *mrb, mrb_value self)
+ {
+@@ -33,12 +44,34 @@ mrb_request_can_send_now_event(mrb_state *mrb, mrb_value self)
+   return mrb_fixnum_value(0);
+ }
+ 
++static mrb_value
++mrb_csc_server_init(mrb_state *mrb, mrb_value self)
++{
++  mrb_int wheel_supported, crank_supported, sensor_location;
++  mrb_get_args(mrb, "iii", &wheel_supported, &crank_supported, &sensor_location);
++  BLE_peripheral_csc_server_init(wheel_supported != 0, crank_supported != 0, (uint8_t)sensor_location);
++  return mrb_fixnum_value(0);
++}
++
++static mrb_value
++mrb_csc_server_update(mrb_state *mrb, mrb_value self)
++{
++  mrb_int wheel_revolutions, wheel_time, crank_revolutions, crank_time;
++  mrb_get_args(mrb, "iiii", &wheel_revolutions, &wheel_time, &crank_revolutions, &crank_time);
++  BLE_peripheral_csc_server_update(
++    (int32_t)wheel_revolutions, (uint16_t)wheel_time,
++    (uint16_t)crank_revolutions, (uint16_t)crank_time
++  );
++  return mrb_fixnum_value(0);
++}
++
+ void
+ mrb_init_class_BLE_Peripheral(mrb_state *mrb, struct RClass *class_BLE)
+ {
+-  mrb_define_method_id(mrb, class_BLE, MRB_SYM(peripheral_advertise), mrb_advertise, MRB_ARGS_REQ(1));
++  mrb_define_method_id(mrb, class_BLE, MRB_SYM(peripheral_advertise), mrb_advertise, MRB_ARGS_ARG(1, 2));
+   mrb_define_method_id(mrb, class_BLE, MRB_SYM(notify), mrb_notify, MRB_ARGS_REQ(1));
++  mrb_define_method(mrb, class_BLE, "indicate", mrb_indicate, MRB_ARGS_REQ(1));
+   mrb_define_method_id(mrb, class_BLE, MRB_SYM(request_can_send_now_event), mrb_request_can_send_now_event, MRB_ARGS_NONE());
++  mrb_define_method(mrb, class_BLE, "csc_server_init", mrb_csc_server_init, MRB_ARGS_REQ(3));
++  mrb_define_method(mrb, class_BLE, "csc_server_update", mrb_csc_server_update, MRB_ARGS_REQ(4));
+ }
+-
+-
+diff --git a/mrbgems/picoruby-ble/src/mrubyc/ble.c b/mrbgems/picoruby-ble/src/mrubyc/ble.c
+index f73a44a4..24e0e88b 100644
+--- a/mrbgems/picoruby-ble/src/mrubyc/ble.c
++++ b/mrbgems/picoruby-ble/src/mrubyc/ble.c
+@@ -7,15 +7,29 @@ static mrbc_value read_values = {.tt = MRBC_TT_NIL};
+ void
+ BLE_push_event(uint8_t *data, uint16_t size)
+ {
+-  if (packet_mutex) return;
++  if (packet_mutex || size > BLE_EVENT_MAX_SIZE) {
++    event_queue_dropped++;
++    return;
++  }
+   packet_mutex = true;
+-  packet_flag = true;
+-  packet_size = size;
+-  if (packet != NULL) {
+-    mrbc_raw_free(packet);
++  while ((event_queue_count == BLE_EVENT_QUEUE_RECORD_CAPACITY) ||
++         ((BLE_EVENT_QUEUE_BYTE_CAPACITY - event_queue_bytes) < size)) {
++    uint16_t dropped_size = event_queue_sizes[event_queue_record_tail];
++    event_queue_data_tail = (uint16_t)((event_queue_data_tail + dropped_size) % BLE_EVENT_QUEUE_BYTE_CAPACITY);
++    event_queue_bytes -= dropped_size;
++    event_queue_record_tail = (uint8_t)((event_queue_record_tail + 1u) % BLE_EVENT_QUEUE_RECORD_CAPACITY);
++    event_queue_count--;
++    event_queue_dropped++;
+   }
+-  packet = mrbc_raw_alloc(packet_size);
+-  memcpy(packet, data, packet_size);
++  uint16_t first = BLE_EVENT_QUEUE_BYTE_CAPACITY - event_queue_data_head;
++  if (first > size) first = size;
++  memcpy(&event_queue_data[event_queue_data_head], data, first);
++  if (first < size) memcpy(event_queue_data, &data[first], size - first);
++  event_queue_sizes[event_queue_record_head] = size;
++  event_queue_data_head = (uint16_t)((event_queue_data_head + size) % BLE_EVENT_QUEUE_BYTE_CAPACITY);
++  event_queue_bytes += size;
++  event_queue_record_head = (uint8_t)((event_queue_record_head + 1u) % BLE_EVENT_QUEUE_RECORD_CAPACITY);
++  event_queue_count++;
+   packet_mutex = false;
+ }
+ 
+@@ -73,19 +87,31 @@ c_pop_heartbeat(mrbc_vm *vm, mrbc_value *v, int argc)
+ static void
+ c_pop_packet(mrbc_vm *vm, mrbc_value *v, int argc)
+ {
+-  if (packet_mutex || !packet_flag) {
++  if (packet_mutex || event_queue_count == 0) {
+     SET_NIL_RETURN();
+     return;
+   }
+   packet_mutex = true;
+-  packet_flag = false;
+-  mrb_value packet_value = mrbc_string_new(vm, (const char *)packet, packet_size);
+-  mrbc_raw_free(packet);
+-  packet = NULL;
++  uint16_t size = event_queue_sizes[event_queue_record_tail];
++  mrb_value packet_value = mrbc_string_new(vm, NULL, size);
++  uint16_t first = BLE_EVENT_QUEUE_BYTE_CAPACITY - event_queue_data_tail;
++  if (first > size) first = size;
++  memcpy(packet_value.string->data, &event_queue_data[event_queue_data_tail], first);
++  if (first < size) memcpy(&packet_value.string->data[first], event_queue_data, size - first);
++  event_queue_data_tail = (uint16_t)((event_queue_data_tail + size) % BLE_EVENT_QUEUE_BYTE_CAPACITY);
++  event_queue_bytes -= size;
++  event_queue_record_tail = (uint8_t)((event_queue_record_tail + 1u) % BLE_EVENT_QUEUE_RECORD_CAPACITY);
++  event_queue_count--;
+   packet_mutex = false;
+   SET_RETURN(packet_value);
+ }
+ 
++static void
++c_event_queue_dropped(mrbc_vm *vm, mrbc_value *v, int argc)
++{
++  SET_INT_RETURN((mrbc_int_t)event_queue_dropped);
++}
++
+ static void
+ c_pop_write_value(mrbc_vm *vm, mrbc_value *v, int argc)
+ {
+@@ -187,9 +213,9 @@ mrbc_ble_init(mrbc_vm *vm)
+   mrbc_define_method(vm, class_BLE, "push_read_value", c_push_read_value);
+   mrbc_define_method(vm, class_BLE, "pop_heartbeat", c_pop_heartbeat);
+   mrbc_define_method(vm, class_BLE, "pop_packet", c_pop_packet);
++  mrbc_define_method(vm, class_BLE, "event_queue_dropped", c_event_queue_dropped);
+ 
+   mrbc_init_class_BLE_Peripheral(vm, class_BLE);
+   mrbc_init_class_BLE_Broadcaster(vm, class_BLE);
+   mrbc_init_class_BLE_Central(vm, class_BLE);
+ }
+-
+diff --git a/mrbgems/picoruby-ble/src/mrubyc/ble_broadcaster.c b/mrbgems/picoruby-ble/src/mrubyc/ble_broadcaster.c
+index 115ea6bb..d0571518 100644
+--- a/mrbgems/picoruby-ble/src/mrubyc/ble_broadcaster.c
++++ b/mrbgems/picoruby-ble/src/mrubyc/ble_broadcaster.c
+@@ -7,7 +7,7 @@ c_advertise(mrbc_vm *vm, mrbc_value *v, int argc)
+   if (adv_data.tt == MRBC_TT_NIL) {
+     BLE_peripheral_stop_advertise();
+   } else {
+-    BLE_peripheral_advertise(adv_data.string->data, adv_data.string->size, false);
++    BLE_peripheral_advertise(adv_data.string->data, adv_data.string->size, false, 800, 800);
+   }
+   SET_INT_RETURN(0);
+ }
+diff --git a/mrbgems/picoruby-ble/src/mrubyc/ble_peripheral.c b/mrbgems/picoruby-ble/src/mrubyc/ble_peripheral.c
+index 3ea56e03..2dea02c5 100644
+--- a/mrbgems/picoruby-ble/src/mrubyc/ble_peripheral.c
++++ b/mrbgems/picoruby-ble/src/mrubyc/ble_peripheral.c
+@@ -4,10 +4,17 @@ static void
+ c_advertise(mrbc_vm *vm, mrbc_value *v, int argc)
+ {
+   mrbc_value adv_data = GET_ARG(1);
++  uint16_t adv_int_min = argc >= 2 ? (uint16_t)GET_INT_ARG(2) : 800;
++  uint16_t adv_int_max = argc >= 3 ? (uint16_t)GET_INT_ARG(3) : 800;
++  if (argc != 1 && argc != 3) {
++    mrbc_raise(vm, MRBC_CLASS(ArgumentError), "wrong number of arguments");
++    return;
++  }
+   if (adv_data.tt == MRBC_TT_NIL) {
+     BLE_peripheral_stop_advertise();
+   } else {
+-    BLE_peripheral_advertise(adv_data.string->data, adv_data.string->size, true);
++    BLE_peripheral_advertise(adv_data.string->data, adv_data.string->size, true,
++                             adv_int_min, adv_int_max);
+   }
+   SET_INT_RETURN(0);
+ }
+@@ -23,6 +30,16 @@ c_notify(mrbc_vm *vm, mrbc_value *v, int argc)
+   SET_INT_RETURN(0);
+ }
+ 
++static void
++c_indicate(mrbc_vm *vm, mrbc_value *v, int argc)
++{
++  if (argc != 1) {
++    mrbc_raise(vm, MRBC_CLASS(ArgumentError), "wrong number of arguments");
++    return;
++  }
++  SET_INT_RETURN(BLE_peripheral_indicate((uint16_t)GET_INT_ARG(1)));
++}
++
+ static void
+ c_request_can_send_now_event(mrbc_vm *vm, mrbc_value *v, int argc)
+ {
+@@ -30,11 +47,38 @@ c_request_can_send_now_event(mrbc_vm *vm, mrbc_value *v, int argc)
+   SET_INT_RETURN(0);
+ }
+ 
++static void
++c_csc_server_init(mrbc_vm *vm, mrbc_value *v, int argc)
++{
++  if (argc != 3) {
++    mrbc_raise(vm, MRBC_CLASS(ArgumentError), "wrong number of arguments");
++    return;
++  }
++  BLE_peripheral_csc_server_init(GET_INT_ARG(1) != 0, GET_INT_ARG(2) != 0, (uint8_t)GET_INT_ARG(3));
++  SET_INT_RETURN(0);
++}
++
++static void
++c_csc_server_update(mrbc_vm *vm, mrbc_value *v, int argc)
++{
++  if (argc != 4) {
++    mrbc_raise(vm, MRBC_CLASS(ArgumentError), "wrong number of arguments");
++    return;
++  }
++  BLE_peripheral_csc_server_update(
++    (int32_t)GET_INT_ARG(1), (uint16_t)GET_INT_ARG(2),
++    (uint16_t)GET_INT_ARG(3), (uint16_t)GET_INT_ARG(4)
++  );
++  SET_INT_RETURN(0);
++}
++
+ void
+ mrbc_init_class_BLE_Peripheral(mrbc_vm *vm, mrbc_class *class_BLE)
+ {
+   mrbc_define_method(vm, class_BLE, "peripheral_advertise", c_advertise);
+   mrbc_define_method(vm, class_BLE, "notify", c_notify);
++  mrbc_define_method(vm, class_BLE, "indicate", c_indicate);
+   mrbc_define_method(vm, class_BLE, "request_can_send_now_event", c_request_can_send_now_event);
++  mrbc_define_method(vm, class_BLE, "csc_server_init", c_csc_server_init);
++  mrbc_define_method(vm, class_BLE, "csc_server_update", c_csc_server_update);
+ }
+-
+diff --git a/mrbgems/picoruby-i2c/README.md b/mrbgems/picoruby-i2c/README.md
+index 96b37f0b..3bee99d4 100644
+--- a/mrbgems/picoruby-i2c/README.md
++++ b/mrbgems/picoruby-i2c/README.md
+@@ -17,6 +17,10 @@ data = i2c.read(0x50, 4)  # Read 4 bytes from device 0x50
+ # Write then read
+ data = i2c.read(0x50, 2, 0x00)  # Write 0x00, then read 2 bytes
+ 
++# Reuse a fixed buffer in a high-frequency loop
++buffer = "\0" * 14
++i2c.read_into(0x68, buffer, 0x3b)
++
+ # Scan for devices
+ i2c.scan  # Prints addresses of connected devices
+ ```
+@@ -33,6 +37,7 @@ i2c.scan  # Prints addresses of connected devices
+ - `I2C.new(unit:, frequency: DEFAULT_FREQUENCY, sda_pin:, scl_pin:, timeout: DEFAULT_TIMEOUT)` - Initialize I2C
+ - `write(address, *data, timeout: nil, nostop: false)` - Write data to I2C device
+ - `read(address, length, *write_data, timeout: nil)` - Read data from I2C device
++- `read_into(address, buffer, *write_data, timeout: nil)` - Read exactly `buffer.bytesize` bytes into an existing String
+ - `scan(timeout: nil)` - Scan and print connected I2C devices
+ 
+ ## Notes
+diff --git a/mrbgems/picoruby-i2c/sig/i2c.rbs b/mrbgems/picoruby-i2c/sig/i2c.rbs
+index 0985ee34..c9f5ec7c 100644
+--- a/mrbgems/picoruby-i2c/sig/i2c.rbs
++++ b/mrbgems/picoruby-i2c/sig/i2c.rbs
+@@ -33,5 +33,11 @@ class I2C
+     *outputs_t outputs,
+     ?timeout: Integer,
+   ) -> String
++  def read_into: (
++    Integer i2c_adrs_7,
++    String buffer,
++    *outputs_t outputs,
++    ?timeout: Integer,
++  ) -> String
+   def scan: (?timeout: Integer) -> nil
+ end
+diff --git a/mrbgems/picoruby-i2c/src/mruby/i2c.c b/mrbgems/picoruby-i2c/src/mruby/i2c.c
+index 30a49aa7..118eb938 100644
+--- a/mrbgems/picoruby-i2c/src/mruby/i2c.c
++++ b/mrbgems/picoruby-i2c/src/mruby/i2c.c
+@@ -171,6 +171,40 @@ mrb_i2c_read(mrb_state *mrb, mrb_value self)
+   }
+ }
+ 
++static mrb_value
++mrb_i2c_read_into(mrb_state *mrb, mrb_value self)
++{
++  mrb_value *args;
++  mrb_value buffer;
++  mrb_int argc;
++  mrb_int i2c_adrs_7;
++  mrb_int timeout_ms;
++  const mrb_sym kw_names[] = { MRB_SYM(timeout) };
++  mrb_value kw_values[1];
++  mrb_kwargs kwargs = { 1, 0, kw_names, kw_values, NULL };
++
++  mrb_get_args(mrb, "iS*:", &i2c_adrs_7, &buffer, &args, &argc, &kwargs);
++  mrb_int len = RSTRING_LEN(buffer);
++  if (len <= 0) mrb_raise(mrb, E_ARGUMENT_ERROR, "buffer must not be empty");
++
++  mrb_int unit_num = mrb_fixnum(mrb_iv_get(mrb, self, MRB_IVSYM(unit_num)));
++  timeout_ms = mrb_undef_p(kw_values[0]) ?
++    mrb_fixnum(mrb_iv_get(mrb, self, MRB_IVSYM(timeout))) : mrb_fixnum(kw_values[0]);
++
++  if (argc > 0) {
++    mrb_int res = mrb_i2c_write_outputs(mrb, unit_num, i2c_adrs_7, args, argc, timeout_ms, true);
++    if (res < 0) mrb_raise(mrb, IOError, "I2C write (for read) failed");
++  }
++
++  mrb_str_modify(mrb, mrb_str_ptr(buffer));
++  int ret = I2C_read_timeout_us(
++    (uint8_t)unit_num, (uint8_t)i2c_adrs_7, (uint8_t *)RSTRING_PTR(buffer),
++    (size_t)len, false, (uint32_t)timeout_ms * 1000
++  );
++  if (ret != len) mrb_raise(mrb, IOError, "I2C short read");
++  return buffer;
++}
++
+ static mrb_value
+ mrb_i2c__init(mrb_state *mrb, mrb_value self)
+ {
+@@ -200,6 +234,7 @@ mrb_picoruby_i2c_gem_init(mrb_state* mrb)
+   mrb_define_method_id(mrb, class_I2C, MRB_SYM(_init), mrb_i2c__init, MRB_ARGS_REQ(4));
+   mrb_define_method_id(mrb, class_I2C, MRB_SYM(write), mrb_i2c_write, MRB_ARGS_REQ(1)|MRB_ARGS_REST()|MRB_ARGS_KEY(1, 0));
+   mrb_define_method_id(mrb, class_I2C, MRB_SYM(read), mrb_i2c_read, MRB_ARGS_REQ(2)|MRB_ARGS_REST()|MRB_ARGS_KEY(1, 0));
++  mrb_define_method(mrb, class_I2C, "read_into", mrb_i2c_read_into, MRB_ARGS_REQ(2)|MRB_ARGS_REST()|MRB_ARGS_KEY(1, 0));
+ }
+ 
+ void
+diff --git a/mrbgems/picoruby-i2c/src/mrubyc/i2c.c b/mrbgems/picoruby-i2c/src/mrubyc/i2c.c
+index 25e55c91..89d78fb6 100644
+--- a/mrbgems/picoruby-i2c/src/mrubyc/i2c.c
++++ b/mrbgems/picoruby-i2c/src/mrubyc/i2c.c
+@@ -177,6 +177,48 @@ c_read(mrbc_vm *vm, mrbc_value *v, int argc)
+   }
+ }
+ 
++static void
++c_read_into(mrbc_vm *vm, mrbc_value *v, int argc)
++{
++  if (argc < 2 || v[2].tt != MRBC_TT_STRING) {
++    mrbc_raise(vm, MRBC_CLASS(ArgumentError), "address and String buffer required");
++    return;
++  }
++
++  mrbc_int_t i2c_adrs_7 = GET_INT_ARG(1);
++  mrbc_value *buffer = &v[2];
++  mrbc_int_t len = buffer->string->size;
++  if (len <= 0) {
++    mrbc_raise(vm, MRBC_CLASS(ArgumentError), "buffer must not be empty");
++    return;
++  }
++  mrbc_int_t unit_num = mrbc_integer(mrbc_instance_getiv(&v[0], mrbc_str_to_symid("unit_num")));
++  mrbc_int_t timeout_ms = mrbc_integer(mrbc_instance_getiv(&v[0], mrbc_str_to_symid("timeout")));
++
++  if (argc > 2 && v[argc].tt == MRBC_TT_HASH) {
++    mrbc_value timeout_key = mrbc_symbol_value(mrbc_str_to_symid("timeout"));
++    mrbc_value timeout_val = mrbc_hash_get(&v[argc], &timeout_key);
++    if (timeout_val.tt == MRBC_TT_INTEGER) timeout_ms = mrbc_integer(timeout_val);
++    argc--;
++  }
++
++  if (argc > 2) {
++    mrbc_int_t res = mrbc_i2c_write_outputs(vm, unit_num, i2c_adrs_7, &v[3], argc - 2, timeout_ms, true);
++    if (res < 0) return;
++  }
++
++  int ret = I2C_read_timeout_us(
++    (uint8_t)unit_num, (uint8_t)i2c_adrs_7, buffer->string->data,
++    (size_t)len, false, (uint32_t)timeout_ms * 1000
++  );
++  if (ret != len) {
++    mrbc_raise(vm, MRBC_CLASS(IOError), "I2C short read");
++    return;
++  }
++  mrbc_incref(buffer);
++  SET_RETURN(*buffer);
++}
++
+ static void
+ c__init(mrbc_vm *vm, mrbc_value *v, int argc)
+ {
+@@ -202,6 +244,6 @@ mrbc_i2c_init(mrbc_vm *vm)
+   mrbc_define_method(vm, mrbc_class_I2C, "_init", c__init);
+   mrbc_define_method(vm, mrbc_class_I2C, "write", c_write);
+   mrbc_define_method(vm, mrbc_class_I2C, "read", c_read);
++  mrbc_define_method(vm, mrbc_class_I2C, "read_into", c_read_into);
+ }
+ 
+-
+

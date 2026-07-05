@@ -113,6 +113,40 @@ TLV設定を実機で確認する必要があります。
   update引数は累積値でなく増分で、調査したupstream sourceはcrank counterをrolloverせず
   `0xffff`で飽和させる。CSCS要件に合わせた修正なしでは採用できない。
 
+## CSCP sensor用PicoRuby patch
+
+このリポジトリの実装はPicoRuby `bc559024` と、そのPico SDK内のBTstack
+`501e6d2b8` に対する次の2 patchを必要とします。
+
+- `patches/picoruby-cscp-sensor.patch`: native CSCS wrapper、広告interval指定、
+  LE Connection Complete転送、4-slot固定長event ring、allocation-free
+  `I2C#read_into`
+- `patches/btstack-cscp-server.patch`: CCCD値とControl Point長の検証、切断時reset、
+  indication完了/timeout、Crank Revolutionのuint16 rollover、通知要求の重複抑止
+
+プロジェクトrootから適用します。BTstackは入れ子のsubmoduleなので別に適用します。
+
+```sh
+git -C tmp/picoruby apply "$(pwd)/patches/picoruby-cscp-sensor.patch"
+git -C tmp/picoruby/mrbgems/picoruby-r2p2/lib/pico-sdk/lib/btstack \
+  apply "$(pwd)/patches/btstack-cscp-server.patch"
+```
+
+Pico 2 W production buildはRuby 3.4以降で実行します。
+
+```sh
+cd tmp/picoruby
+ruby -S rake r2p2:picoruby:pico2_w:prod
+```
+
+2026-07-05に両patchを適用したfull buildのコンパイルと最終linkが成功しています。
+event ringは4件のrecord metadataと共有512 byte領域を使い、最大257 byteのHCI eventへ対応
+しながら、従来のeventごとのC heap確保・解放を行いません。満杯時は最古eventを破棄し、
+切断など最新状態を残します。full buildの差分はbaseline比で`text +1,032 byte`、
+`bss +528 byte`でした。
+`I2C#read_into` は呼出側のStringへ直接読み込み、短いreadを例外にするため、10 ms samplingで
+14 byte Stringを毎回作りません。
+
 ## 現行repository実装の差分
 
 payload encoderのfield順、byte order、event time変換、停止中のperiodic notificationという

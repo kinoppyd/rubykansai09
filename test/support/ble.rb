@@ -4,18 +4,41 @@ class BLE
   HCI_POWER_OFF = 0
   POLLING_UNIT_MS = 100
 
-  attr_reader :native_init, :native_update, :profile_data
+  attr_reader :native_init, :native_update, :profile_data, :advertisements, :power_events
 
   def initialize(_role, profile_data)
     @profile_data = profile_data
+    @packets = []
+    @advertisements = []
+    @power_events = []
   end
 
-  def csc_server_init(wheel, crank)
-    @native_init = [wheel, crank]
+  def csc_server_init(wheel, crank, sensor_location)
+    @native_init = [wheel, crank, sensor_location]
   end
 
   def csc_server_update(wheel_delta, wheel_time, crank_delta, crank_time)
     @native_update = [wheel_delta, wheel_time, crank_delta, crank_time]
+  end
+
+  def peripheral_advertise(data, min_interval, max_interval)
+    @advertisements << [data, min_interval, max_interval]
+  end
+
+  def hci_power_control(mode)
+    @power_events << mode
+  end
+
+  def queue_packet(packet)
+    @packets << packet
+  end
+
+  def pop_packet
+    @packets.shift
+  end
+
+  def pop_heartbeat
+    false
   end
 
   class GattDatabase

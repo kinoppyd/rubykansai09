@@ -17,7 +17,7 @@ class PicoRubyPeripheralTest < Minitest::Test
     assert_equal BLETransport::READ,
                  characteristic(BLETransport::CSC_FEATURE_UUID)[:properties] & 0xff
     assert_nil characteristic(BLETransport::CSC_CONTROL_POINT_UUID)
-    assert_equal [0, 1], runtime.native_init
+    assert_equal [0, 1, 6], runtime.native_init
   end
 
   def test_wheel_gatt_includes_control_point_and_appearance
@@ -30,7 +30,7 @@ class PicoRubyPeripheralTest < Minitest::Test
     assert_equal 1, control[:descriptors].size
     appearance = characteristic(BLETransport::GAP_APPEARANCE_UUID)
     assert_equal [0x82, 0x04], appearance[:value].bytes
-    assert_equal [1, 0], runtime.native_init
+    assert_equal [1, 0, 12], runtime.native_init
   end
 
   def test_advertising_contains_csc_uuid_and_shortens_long_name
@@ -61,5 +61,49 @@ class PicoRubyPeripheralTest < Minitest::Test
 
     assert_equal true, runtime.notify_measurement(payload)
     assert_equal [3, 1_024, 7, 1_536], runtime.native_update
+  end
+
+  def test_le_connection_complete_connects_without_mtu_exchange
+    runtime = BLETransport::PicoRubyCSCRuntime.new("PicoRuby CSC", BLETransport.u16_le(2), 6)
+    runtime.queue_packet("\x3e\x02\x01\x00")
+
+    runtime.poll_once(100)
+
+    assert_equal true, runtime.connected?
+  end
+
+  def test_enhanced_le_connection_complete_versions_connect
+    [0x0a, 0x29].each do |subevent|
+      runtime = BLETransport::PicoRubyCSCRuntime.new("PicoRuby CSC", BLETransport.u16_le(2), 6)
+      runtime.queue_packet("\x3e\x02" + subevent.chr + "\x00")
+      runtime.poll_once(100)
+      assert_equal true, runtime.connected?
+    end
+  end
+
+  def test_disconnect_restarts_fast_then_switches_to_slow_advertising
+    runtime = BLETransport::PicoRubyCSCRuntime.new("PicoRuby CSC", BLETransport.u16_le(2), 6)
+    runtime.queue_packet("\x60\x01\x02")
+    runtime.poll_once(100)
+    assert_equal [48, 96], runtime.advertisements[-1][1, 2]
+
+    runtime.poll_once(30_099)
+    assert_equal 1, runtime.advertisements.size
+    runtime.poll_once(30_100)
+    assert_equal [1_600, 1_920], runtime.advertisements[-1][1, 2]
+
+    runtime.queue_packet("\x05\x00")
+    runtime.poll_once(40_000)
+    assert_equal [48, 96], runtime.advertisements[-1][1, 2]
+  end
+
+  def test_power_lifecycle_is_idempotent
+    runtime = BLETransport::PicoRubyCSCRuntime.new("PicoRuby CSC", BLETransport.u16_le(2), 6)
+
+    assert_equal true, runtime.power_on
+    assert_equal false, runtime.power_on
+    assert_equal true, runtime.power_off
+    assert_equal false, runtime.power_off
+    assert_equal [BLE::HCI_POWER_ON, BLE::HCI_POWER_OFF], runtime.power_events
   end
 end

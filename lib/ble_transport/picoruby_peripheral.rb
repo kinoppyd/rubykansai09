@@ -44,21 +44,41 @@ module BLETransport
       @runtime.start(timeout_ms)
     end
 
-    def poll
-      @runtime.poll_once
+    def power_on
+      @runtime.power_on
+    end
+
+    def power_off
+      @runtime.power_off
+    end
+
+    def poll(now_ms = nil)
+      @runtime.poll_once(now_ms)
     end
   end
 
   class PicoRubyCSCRuntime < ::BLE
     BTSTACK_EVENT_STATE = 0x60
+    HCI_EVENT_LE_META = 0x3E
+    HCI_SUBEVENT_LE_CONNECTION_COMPLETE = 0x01
+    HCI_SUBEVENT_LE_ENHANCED_CONNECTION_COMPLETE_V1 = 0x0A
+    HCI_SUBEVENT_LE_ENHANCED_CONNECTION_COMPLETE_V2 = 0x29
     HCI_EVENT_DISCONNECTION_COMPLETE = 0x05
     ATT_EVENT_MTU_EXCHANGE_COMPLETE = 0xB5
     MAX_ATT_DB_SIZE = 512
     MAX_AD_NAME_BYTES = 18
+    FAST_ADV_MIN = 48
+    FAST_ADV_MAX = 96
+    SLOW_ADV_MIN = 1_600
+    SLOW_ADV_MAX = 1_920
+    FAST_ADV_DURATION_MS = 30_000
 
     def initialize(name, feature_payload, sensor_location)
       @advertising_started = false
+      @advertising_fast = false
+      @advertising_started_at = 0
       @connected = false
+      @powered = false
       @adv_data = nil
       @measurement_handle = nil
       @last_wheel_revolutions = 0
@@ -103,7 +123,7 @@ module BLETransport
       raise "CSCS ATT database exceeds 512 bytes" if MAX_ATT_DB_SIZE < db.profile_data.bytesize
       @adv_data = advertising_data(name, appearance_payload)
       super(:peripheral, db.profile_data)
-      csc_server_init(@wheel_supported ? 1 : 0, @crank_supported ? 1 : 0)
+      csc_server_init(@wheel_supported ? 1 : 0, @crank_supported ? 1 : 0, sensor_location || 0)
     end
 
     def measurement_handle
@@ -114,10 +134,13 @@ module BLETransport
       @connected
     end
 
-    def start_advertising
+    def start_advertising(now_ms = nil)
       return true if @advertising_started
-      advertise(@adv_data)
+      now_ms = monotonic_ms if now_ms.nil?
+      peripheral_advertise(@adv_data, FAST_ADV_MIN, FAST_ADV_MAX)
       @advertising_started = true
+      @advertising_fast = true
+      @advertising_started_at = now_ms
       true
     end
 
@@ -150,36 +173,86 @@ module BLETransport
 
     def start(timeout_ms = nil)
       t = 0
-      hci_power_control(HCI_POWER_ON)
-      loop do
-        break if timeout_ms && timeout_ms <= t
-        poll_once
-        sleep_ms POLLING_UNIT_MS
-        t += POLLING_UNIT_MS
+      power_on
+      begin
+        loop do
+          break if timeout_ms && timeout_ms <= t
+          poll_once
+          sleep_ms POLLING_UNIT_MS
+          t += POLLING_UNIT_MS
+        end
+      ensure
+        power_off
       end
       t
     end
 
-    def poll_once
+    def power_on
+      return false if @powered
+      hci_power_control(HCI_POWER_ON)
+      @powered = true
+      true
+    end
+
+    def power_off
+      return false unless @powered
+      hci_power_control(HCI_POWER_OFF)
+      @powered = false
+      @connected = false
+      @advertising_started = false
+      @advertising_fast = false
+      true
+    end
+
+    def poll_once(now_ms = nil)
+      now_ms = monotonic_ms if now_ms.nil?
       while (p = pop_packet)
-        packet_callback(p)
+        packet_callback(p, now_ms)
       end
       while pop_heartbeat
         # Native CSC server owns CCCD state; only drain the periodic flag.
       end
+      slow_advertising_if_due(now_ms)
     end
 
-    def packet_callback(p)
+    def packet_callback(p, now_ms = nil)
       e = p.getbyte(0)
       if e == BTSTACK_EVENT_STATE
-        start_advertising if p.getbyte(2) == HCI_STATE_WORKING
+        start_advertising(now_ms) if p.getbyte(2) == HCI_STATE_WORKING
+      elsif e == HCI_EVENT_LE_META
+        subevent = p.getbyte(2)
+        if (subevent == HCI_SUBEVENT_LE_CONNECTION_COMPLETE ||
+            subevent == HCI_SUBEVENT_LE_ENHANCED_CONNECTION_COMPLETE_V1 ||
+            subevent == HCI_SUBEVENT_LE_ENHANCED_CONNECTION_COMPLETE_V2) && p.getbyte(3) == 0
+          @connected = true
+          @advertising_started = false
+          @advertising_fast = false
+        end
       elsif e == HCI_EVENT_DISCONNECTION_COMPLETE
         @connected = false
         @advertising_started = false
-        start_advertising
+        @advertising_fast = false
+        start_advertising(now_ms)
       elsif e == ATT_EVENT_MTU_EXCHANGE_COMPLETE
         @connected = true
       end
+    end
+
+    def slow_advertising_if_due(now_ms)
+      return false unless @advertising_started && @advertising_fast && !@connected
+      elapsed = (now_ms - @advertising_started_at) & 0xffffffff
+      return false if elapsed < FAST_ADV_DURATION_MS
+      peripheral_advertise(@adv_data, SLOW_ADV_MIN, SLOW_ADV_MAX)
+      @advertising_fast = false
+      true
+    end
+
+    def monotonic_ms
+      if Object.const_defined?(:Machine)
+        return Machine.uptime_us / 1000 if Machine.respond_to?(:uptime_us)
+        return Machine.board_millis if Machine.respond_to?(:board_millis)
+      end
+      0
     end
 
     def advertising_data(name, appearance_payload)

@@ -81,7 +81,7 @@ failure 0 です。これは encode と合成入力の確認であり、Pico 2 W
   Feature と Sensor Location の初期値が必ず返る構成にする。
 - [x] Sensor Location (`0x2A5D`) を公開する場合、値を取付位置と一致させる。Multiple
   Sensor Locations featureを立てない場合は、値をdevice lifetime中staticにする。
-- [ ] CCCD のreadが `0x0000` / `0x0001` を返し、writeは2 byteの `0x0000`（解除）と
+- [x] native CSC serverのCCCD readが `0x0000` / `0x0001` を返し、writeは2 byteの `0x0000`（解除）と
   `0x0001`（notify有効）だけを受理する。それ以外は安全に拒否する。切断時は
   connectionごとのsubscribe stateをclearする。
 - [x] CCCD がnotify enabledになった後だけ、接続中に約1秒周期で CSC Measurement を送る。
@@ -92,7 +92,7 @@ failure 0 です。これは encode と合成入力の確認であり、Pico 2 W
 - [x] SC Control Point (`0x2A55`) を `Write | Indicate`、専用CCCDを `Read | Write` で追加する。
 - [x] Set Cumulative Value (`opcode 0x01` + `uint32`) をnative CSC serverで処理し、Response Code indication
   (`0x10`, request opcode, response value) を返す。
-- [ ] indication未subscribe時の `0x81`、procedure実行中の `0x80`、未知opcode、invalid
+- [x] indication未subscribe時の `0x81`、procedure実行中の `0x80`、未知opcode、invalid
   length、indication confirmation、30秒timeoutを処理する。
 - [x] PicoRuby側でRuby実装を拡張するか、既にlinkされているBTstackの
   `cycling_speed_and_cadence_service_server` を使うか決める。後者はcan-send-nowとControl
@@ -101,20 +101,20 @@ failure 0 です。これは encode と合成入力の確認であり、Pico 2 W
 
 ## P0: PicoRuby BLE transport を実機で成立させる
 
-- [ ] `PicoRubyCSCRuntime` が LE Connection Complete でconnected状態になるようにする。
+- [x] `PicoRubyCSCRuntime` が LE Connection Complete でconnected状態になるようにする。
   現在は ATT MTU Exchange Complete を接続判定に使うため、CentralがMTU exchangeしない場合を
   扱えない。
-- [ ] subscribe writeを1秒heartbeat時だけでなく各pollで処理し、subscribe直後の遅延をなくす。
+- [x] native CSC serverのwrite callbackでsubscribeを即時処理し、heartbeat待ちの遅延をなくす。
 - [x] native CSC serverのcan-send-now callbackを使ってnotificationを送る。
   現在は送信可能状態を確認せず `att_server_notify` を直接呼び、結果も上位へ返らない。
-- [ ] PicoRuby BLE C層のpacket mailboxが1 packet分しかなく、新イベントで上書きされる設計を
-  stress testする。接続・CCCD・切断を失わない固定長ring buffer、またはイベント別stateへ
-  変更する。
-- [ ] disconnect時にconnection handle、CCCD、pending notify/indicationを破棄し、advertisingを
+- [x] PicoRuby BLE C層のpacket mailboxを、4件のmetadataと共有512 byteを使う固定長ring
+  bufferへ変更する。最大257 byte eventに対応し、eventごとのC heap確保を廃止する。
+  満杯時は最新状態を残すため最古eventを破棄する。
+- [x] disconnect時にconnection handle、CCCD、pending notify/indicationを破棄し、advertisingを
   再開する。
-- [ ] advertising APIでintervalを設定可能にする。CSCP推奨は最初の30秒が30〜60 ms、以後が
+- [x] advertising APIでintervalを設定可能にし、最初の30秒を30〜60 ms、以後を
   1〜1.2 s。現行PicoRuby実装は800 units、すなわち500 ms固定。
-- [ ] `BLE#start` と独自 `poll` loopのpower on/off責務を一本化し、例外やアプリ終了時に
+- [x] `BLE#start` と独自 `poll` loopのpower on/off責務を一本化し、例外やアプリ終了時に
   HCIを確実にpower offする。
 - [ ] Security Mode 1 Level 1の非暗号化接続を最初の相互接続試験に使う。次に現在の
   PicoRuby設定（No Input No Output、Just Works、bonding）で再接続とbond keyのflash保存を確認する。
