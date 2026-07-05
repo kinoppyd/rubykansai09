@@ -37,6 +37,7 @@ class BLECSCService
     @crank_event_time = 0
     @last_notify_ms = nil
     @started = false
+    @native_transport = @transport.respond_to?(:notify_csc)
 
     @flags = 0
     @flags |= 1 if @wheel_supported
@@ -47,10 +48,10 @@ class BLECSCService
     @feature_payload = BLETransport.bytes(2)
     BLETransport.put_u16(@feature_payload, 0, @feature_value)
 
-    n = 1
-    n += 6 if @wheel_supported
-    n += 4 if @crank_supported
-    @payload = BLETransport.bytes(n)
+    @payload_size = 1
+    @payload_size += 6 if @wheel_supported
+    @payload_size += 4 if @crank_supported
+    @payload = @native_transport ? nil : BLETransport.bytes(@payload_size)
   end
 
   def start
@@ -115,7 +116,16 @@ class BLECSCService
 
   def notify(now_ms = nil)
     @last_notify_ms = now_ms
-    @transport.notify(@measurement_characteristic, measurement_payload)
+    if @native_transport
+      @transport.notify_csc(
+        @wheel_revolutions,
+        @wheel_event_time,
+        @crank_revolutions,
+        @crank_event_time
+      )
+    else
+      @transport.notify(@measurement_characteristic, measurement_payload)
+    end
   end
 
   def notify_if_due(now_ms)
@@ -134,6 +144,7 @@ class BLECSCService
   end
 
   def measurement_payload
+    @payload = BLETransport.bytes(@payload_size) if @payload.nil?
     i = 1
     BLETransport.put_u8(@payload, 0, @flags)
 

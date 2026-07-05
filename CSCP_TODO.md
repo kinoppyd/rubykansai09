@@ -69,32 +69,32 @@ failure 0 です。これは encode と合成入力の確認であり、Pico 2 W
 
 ## P0: CSCP / CSCS 1.0.1 の GATT を完成させる
 
-- [ ] GAP Peripheral、GATT Server として、Primary CSCS (`0x1816`) をちょうど1個公開する。
-- [ ] GAP service に Device Name (`0x2A00`) と Appearance (`0x2A01`) を追加する。
+- [x] GAP Peripheral、GATT Server として、Primary CSCS (`0x1816`) をちょうど1個公開する。
+- [x] GAP service に Device Name (`0x2A00`) と Appearance (`0x2A01`) を追加する。
   Appearance は speed `0x0482`、cadence `0x0483`、combined `0x0485` をモードに合わせる。
-- [ ] CSC Measurement (`0x2A5B`) を `Notify` のみ、CCCD (`0x2902`) を `Read | Write` で
+- [x] CSC Measurement (`0x2A5B`) を `Notify` のみ、CCCD (`0x2902`) を `Read | Write` で
   公開する。Measurement value を直接 `Read` / `Write` 可能にしない。
-- [ ] CSC Feature (`0x2A5C`) を `Read` で公開し、wheel bit 0、crank bit 1を実際の
+- [x] CSC Feature (`0x2A5C`) を `Read` で公開し、wheel bit 0、crank bit 1を実際の
   sensor mode と一致させる。RFU は0にする。
-- [ ] 静的な CSC Feature と Sensor Location を `DYNAMIC` にしない、または read callback
-  へ初期値を必ず登録する。現行transportは `DYNAMIC` を指定したまま `push_read_value`
-  していないため、実機readで空値になる可能性がある。
-- [ ] Sensor Location (`0x2A5D`) を公開する場合、値を取付位置と一致させる。Multiple
+- [x] 静的な CSC Feature と Sensor Location は native CSC server の read callback から返す。
+  GATT database の `DYNAMIC` value と native server の handle を一致させ、実機 read で
+  Feature と Sensor Location の初期値が必ず返る構成にする。
+- [x] Sensor Location (`0x2A5D`) を公開する場合、値を取付位置と一致させる。Multiple
   Sensor Locations featureを立てない場合は、値をdevice lifetime中staticにする。
 - [ ] CCCD のreadが `0x0000` / `0x0001` を返し、writeは2 byteの `0x0000`（解除）と
   `0x0001`（notify有効）だけを受理する。それ以外は安全に拒否する。切断時は
   connectionごとのsubscribe stateをclearする。
-- [ ] CCCD がnotify enabledになった後だけ、接続中に約1秒周期で CSC Measurement を送る。
-- [ ] 通知できなかったtime-sensitive measurementを後から古い値のqueueとして送らない。
+- [x] CCCD がnotify enabledになった後だけ、接続中に約1秒周期で CSC Measurement を送る。
+- [x] 通知できなかったtime-sensitive measurementを後から古い値のqueueとして送らない。
 
 ### Wheel Revolution Data を提供する場合の追加必須項目
 
-- [ ] SC Control Point (`0x2A55`) を `Write | Indicate`、専用CCCDを `Read | Write` で追加する。
-- [ ] Set Cumulative Value (`opcode 0x01` + `uint32`) を実装し、Response Code indication
+- [x] SC Control Point (`0x2A55`) を `Write | Indicate`、専用CCCDを `Read | Write` で追加する。
+- [x] Set Cumulative Value (`opcode 0x01` + `uint32`) をnative CSC serverで処理し、Response Code indication
   (`0x10`, request opcode, response value) を返す。
 - [ ] indication未subscribe時の `0x81`、procedure実行中の `0x80`、未知opcode、invalid
   length、indication confirmation、30秒timeoutを処理する。
-- [ ] PicoRuby側でRuby実装を拡張するか、既にlinkされているBTstackの
+- [x] PicoRuby側でRuby実装を拡張するか、既にlinkされているBTstackの
   `cycling_speed_and_cadence_service_server` を使うか決める。後者はcan-send-nowとControl
   Pointを持つが、現行wrapperの `csc_server_update` は累積値ではなく増分を受け取り、
   upstream実装のcrank counterはrolloverせず `0xffff` で飽和するため、そのまま採用しない。
@@ -105,7 +105,7 @@ failure 0 です。これは encode と合成入力の確認であり、Pico 2 W
   現在は ATT MTU Exchange Complete を接続判定に使うため、CentralがMTU exchangeしない場合を
   扱えない。
 - [ ] subscribe writeを1秒heartbeat時だけでなく各pollで処理し、subscribe直後の遅延をなくす。
-- [ ] `ATT_EVENT_CAN_SEND_NOW` と `request_can_send_now_event` を使ってnotificationを送る。
+- [x] native CSC serverのcan-send-now callbackを使ってnotificationを送る。
   現在は送信可能状態を確認せず `att_server_notify` を直接呼び、結果も上位へ返らない。
 - [ ] PicoRuby BLE C層のpacket mailboxが1 packet分しかなく、新イベントで上書きされる設計を
   stress testする。接続・CCCD・切断を失わない固定長ring buffer、またはイベント別stateへ
@@ -133,7 +133,7 @@ failure 0 です。これは encode と合成入力の確認であり、Pico 2 W
 
 ## P1: advertising、補助service、電力
 
-- [ ] advertising dataへFlags `0x06`、Complete/Shortened Local Name、Complete List of 16-bit
+- [x] advertising dataへFlags `0x06`、Complete/Shortened Local Name、Complete List of 16-bit
   Service UUIDsの`0x1816`、Appearanceを31 byte以内で格納する。収まらない項目はscan responseへ
   分けるAPIをPicoRubyへ追加する。
 - [ ] Device Information Service (`0x180A`) にManufacturer NameとModel Numberを追加する。
@@ -156,10 +156,10 @@ ELF `text=2,344,988 byte`、`bss=443,328 byte` でした。これはCSCP専用fi
   `picoruby-i2c`、`picoruby-machine` と必要最小限のruntimeだけを入れる。
 - [ ] `picoruby-ble-uart`、Wi-Fi/LwIP、LCD、PSG、不要なshell機能を除いた場合のflash、
   static RAM、Ruby heapの差をmap fileで記録する。
-- [ ] GATT profile dataが `MAX_ATT_DB_SIZE=512` に収まることをbuild/testでassertする。
+- [x] GATT profile dataが `MAX_ATT_DB_SIZE=512` に収まることを起動時にassertする。
 - [ ] 5〜10 ms samplingと1秒notificationを1時間継続し、GC回数、最小free heap、最大loop
   latency、packet drop、I2C errorを記録する。
-- [ ] measurement payload、advertising data、I2C read buffer、log bufferを再利用する。
+- [x] native transportではRuby measurement payloadを割り当てず、advertising dataとI2C read bufferを再利用する。
   sampling loopに履歴配列を持ち込まない。
 
 ## テスト
@@ -171,9 +171,9 @@ ELF `text=2,344,988 byte`、`bss=443,328 byte` でした。これはCSCP専用fi
 - [x] 擬似時計ではなく実時間取得経路で回転数とevent timeが一致するテストを追加する。
 - [x] stop中のperiodic notifyでcounter/event timeが不変であることを追加する。
 - [ ] CCCDのvalid/invalid write、切断reset、再subscribeをtransport testへ追加する。
-- [ ] GATT databaseのpropertiesをparseし、MeasurementがNotifyのみ、FeatureがRead、Control
+- [x] GATT databaseのpropertiesを記録するhost testで、MeasurementがNotifyのみ、FeatureがRead、Control
   Pointが必要なmodeでWrite+Indicateであることを確認する。
-- [ ] CSC Featureをdevice lifetime中に変更しない構成ではFeature indicationを除外する。
+- [x] CSC Featureをdevice lifetime中に変更しない構成ではFeature indicationを除外する。
   bonding済みdeviceでfirmware更新等によりFeatureを変更可能にする場合だけ、CSCS 1.0.1の
   条件に従いIndicate propertyとCCCD、再接続後のindicationを追加する。
 - [ ] SC Control Pointの全response、並行procedure、indication timeoutをテストする。

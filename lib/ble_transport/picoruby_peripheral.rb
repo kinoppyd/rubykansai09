@@ -2,7 +2,7 @@
 #   require "ble_transport/picoruby_peripheral"
 #   require "mpu_6050_ble_csc"
 #   ble = BLETransport::PicoRubyPeripheral.new
-#   sensor = MPU6050BLECSC.new(mpu, ble, "PicoRuby CSC", :z, :x)
+#   sensor = MPU6050BLECSC.new(mpu, ble, "PicoRuby CSC", nil, :x)
 #   sensor.start
 #   ble.start(1000)
 #   loop do
@@ -32,6 +32,10 @@ module BLETransport
       @runtime.notify_measurement(bytes)
     end
 
+    def notify_csc(wheel_revolutions, wheel_time, crank_revolutions, crank_time)
+      @runtime.update_measurement(wheel_revolutions, wheel_time, crank_revolutions, crank_time)
+    end
+
     def connected?
       @runtime && @runtime.connected?
     end
@@ -49,36 +53,57 @@ module BLETransport
     BTSTACK_EVENT_STATE = 0x60
     HCI_EVENT_DISCONNECTION_COMPLETE = 0x05
     ATT_EVENT_MTU_EXCHANGE_COMPLETE = 0xB5
+    MAX_ATT_DB_SIZE = 512
+    MAX_AD_NAME_BYTES = 18
 
     def initialize(name, feature_payload, sensor_location)
-      @notify_enabled = false
       @advertising_started = false
       @connected = false
       @adv_data = nil
       @measurement_handle = nil
-      @cccd_handle = nil
+      @last_wheel_revolutions = 0
+      @last_crank_revolutions = 0
+
+      feature = BLETransport.get_u16(feature_payload, 0)
+      @wheel_supported = (feature & 1) != 0
+      @crank_supported = (feature & 2) != 0
+      appearance = if @wheel_supported && @crank_supported
+        APPEARANCE_SPEED_AND_CADENCE
+      elsif @wheel_supported
+        APPEARANCE_SPEED
+      else
+        APPEARANCE_CADENCE
+      end
+      appearance_payload = BLETransport.u16_le(appearance)
 
       db = ::BLE::GattDatabase.new do |g|
         g.add_service(GATT_PRIMARY_SERVICE_UUID, GAP_SERVICE_UUID) do |s|
           s.add_characteristic(READ, GAP_DEVICE_NAME_UUID, READ, name)
+          s.add_characteristic(READ, GAP_APPEARANCE_UUID, READ, appearance_payload)
         end
 
         g.add_service(GATT_PRIMARY_SERVICE_UUID, CSC_SERVICE_UUID) do |s|
-          s.add_characteristic(NOTIFY | DYNAMIC, CSC_MEASUREMENT_UUID, NOTIFY | DYNAMIC, "") do |c|
+          s.add_characteristic(NOTIFY, CSC_MEASUREMENT_UUID, DYNAMIC, "") do |c|
             c.add_descriptor(READ | WRITE | DYNAMIC, CLIENT_CHARACTERISTIC_CONFIGURATION, "\x00\x00")
           end
           s.add_characteristic(READ | DYNAMIC, CSC_FEATURE_UUID, READ | DYNAMIC, feature_payload)
           if sensor_location
             s.add_characteristic(READ | DYNAMIC, CSC_SENSOR_LOCATION_UUID, READ | DYNAMIC, BLETransport.u8(sensor_location))
           end
+          if @wheel_supported
+            s.add_characteristic(WRITE | INDICATE, CSC_CONTROL_POINT_UUID, WRITE | DYNAMIC, "") do |c|
+              c.add_descriptor(READ | WRITE | DYNAMIC, CLIENT_CHARACTERISTIC_CONFIGURATION, "\x00\x00")
+            end
+          end
         end
       end
 
       table = db.handle_table[CSC_SERVICE_UUID][CSC_MEASUREMENT_UUID]
       @measurement_handle = table[:value_handle]
-      @cccd_handle = table[CLIENT_CHARACTERISTIC_CONFIGURATION]
-      @adv_data = advertising_data(name)
+      raise "CSCS ATT database exceeds 512 bytes" if MAX_ATT_DB_SIZE < db.profile_data.bytesize
+      @adv_data = advertising_data(name, appearance_payload)
       super(:peripheral, db.profile_data)
+      csc_server_init(@wheel_supported ? 1 : 0, @crank_supported ? 1 : 0)
     end
 
     def measurement_handle
@@ -97,9 +122,29 @@ module BLETransport
     end
 
     def notify_measurement(bytes)
-      return false unless @notify_enabled
-      push_read_value(@measurement_handle, bytes)
-      notify(@measurement_handle)
+      i = 1
+      wheel_revolutions = 0
+      wheel_time = 0
+      crank_revolutions = 0
+      crank_time = 0
+      if (bytes.getbyte(0) & 1) != 0
+        wheel_revolutions = BLETransport.get_u32(bytes, i)
+        wheel_time = BLETransport.get_u16(bytes, i + 4)
+        i += 6
+      end
+      if (bytes.getbyte(0) & 2) != 0
+        crank_revolutions = BLETransport.get_u16(bytes, i)
+        crank_time = BLETransport.get_u16(bytes, i + 2)
+      end
+      update_measurement(wheel_revolutions, wheel_time, crank_revolutions, crank_time)
+    end
+
+    def update_measurement(wheel_revolutions, wheel_time, crank_revolutions, crank_time)
+      wheel_delta = wheel_revolutions - @last_wheel_revolutions
+      crank_delta = (crank_revolutions - @last_crank_revolutions) & 0xffff
+      @last_wheel_revolutions = wheel_revolutions
+      @last_crank_revolutions = crank_revolutions
+      csc_server_update(wheel_delta, wheel_time, crank_delta, crank_time)
       true
     end
 
@@ -120,7 +165,7 @@ module BLETransport
         packet_callback(p)
       end
       while pop_heartbeat
-        check_cccd
+        # Native CSC server owns CCCD state; only drain the periodic flag.
       end
     end
 
@@ -131,24 +176,24 @@ module BLETransport
       elsif e == HCI_EVENT_DISCONNECTION_COMPLETE
         @connected = false
         @advertising_started = false
-        @notify_enabled = false
         start_advertising
       elsif e == ATT_EVENT_MTU_EXCHANGE_COMPLETE
         @connected = true
       end
     end
 
-    def check_cccd
-      while (d = pop_write_value(@cccd_handle))
-        @notify_enabled = d == "\x01\x00"
+    def advertising_data(name, appearance_payload)
+      ad_name = name
+      name_type = AD_COMPLETE_LOCAL_NAME
+      if MAX_AD_NAME_BYTES < name.bytesize
+        ad_name = name.byteslice(0, MAX_AD_NAME_BYTES)
+        name_type = AD_SHORTENED_LOCAL_NAME
       end
-    end
-
-    def advertising_data(name)
       ::BLE::AdvertisingData.build do |a|
         a.add(AD_FLAGS, APP_AD_FLAGS)
-        a.add(AD_COMPLETE_LOCAL_NAME, name)
+        a.add(name_type, ad_name)
         a.add(AD_COMPLETE_LIST_16_BIT_SERVICE_UUIDS, BLETransport.u16_le(CSC_SERVICE_UUID))
+        a.add(AD_APPEARANCE, appearance_payload)
       end
     end
   end

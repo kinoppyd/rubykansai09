@@ -15,6 +15,8 @@ class BLECSCServiceTest < Minitest::Test
     assert_equal [0x34, 0x12], BLETransport.u16_le(0x1234).bytes
     assert_equal [0xff, 0xff], BLETransport.s16_le(-1).bytes
     assert_equal [0x78, 0x56, 0x34, 0x12], BLETransport.u32_le(0x12345678).bytes
+    assert_equal 0x1234, BLETransport.get_u16("\x34\x12", 0)
+    assert_equal 0x12345678, BLETransport.get_u32("\x78\x56\x34\x12", 0)
   end
 
   def test_speed_only_payload
@@ -45,6 +47,18 @@ class BLECSCServiceTest < Minitest::Test
 
     assert_equal [0x03, 3, 0, 0, 0, 0, 4, 7, 0, 0, 6],
                  transport.notifications.last[:bytes].bytes
+  end
+
+  def test_native_transport_skips_ruby_measurement_payload
+    transport = NativeTransport.new
+    service = BLECSCService.new(transport, "PicoRuby CSC", false, true)
+    service.start
+    service.add_crank(3, 1_500)
+
+    service.notify(1_500)
+
+    assert_equal [0, 0, 3, 1_536], transport.csc_values
+    assert_nil service.instance_variable_get(:@payload)
   end
 
   def test_notify_if_due
@@ -319,6 +333,23 @@ class BLECSCServiceTest < Minitest::Test
         s << 0
       end
       s
+    end
+  end
+
+  class NativeTransport
+    attr_reader :csc_values
+
+    def setup_csc(_name, _feature_payload, _sensor_location)
+      1
+    end
+
+    def notify_csc(wheel_revolutions, wheel_time, crank_revolutions, crank_time)
+      @csc_values = [wheel_revolutions, wheel_time, crank_revolutions, crank_time]
+      true
+    end
+
+    def connected?
+      true
     end
   end
 

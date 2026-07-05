@@ -13,22 +13,31 @@ module BLETransport
   READ = 2
   WRITE = 8
   NOTIFY = 16
+  INDICATE = 32
   DYNAMIC = 256
 
   GATT_PRIMARY_SERVICE_UUID = 0x2800
   GAP_SERVICE_UUID = 0x1800
   GAP_DEVICE_NAME_UUID = 0x2A00
+  GAP_APPEARANCE_UUID = 0x2A01
   CLIENT_CHARACTERISTIC_CONFIGURATION = 0x2902
 
   CSC_SERVICE_UUID = 0x1816
   CSC_MEASUREMENT_UUID = 0x2A5B
   CSC_FEATURE_UUID = 0x2A5C
   CSC_SENSOR_LOCATION_UUID = 0x2A5D
+  CSC_CONTROL_POINT_UUID = 0x2A55
 
   AD_FLAGS = 1
   AD_COMPLETE_LIST_16_BIT_SERVICE_UUIDS = 3
   AD_COMPLETE_LOCAL_NAME = 9
+  AD_SHORTENED_LOCAL_NAME = 8
+  AD_APPEARANCE = 0x19
   APP_AD_FLAGS = 6
+
+  APPEARANCE_SPEED = 0x0482
+  APPEARANCE_CADENCE = 0x0483
+  APPEARANCE_SPEED_AND_CADENCE = 0x0485
 
   def self.bytes(n)
     s = String.new
@@ -79,5 +88,16 @@ module BLETransport
     s.setbyte(i + 1, (v >> 8) & 255)
     s.setbyte(i + 2, (v >> 16) & 255)
     s.setbyte(i + 3, (v >> 24) & 255)
+  end
+
+  def self.get_u16(s, i)
+    s.getbyte(i) | (s.getbyte(i + 1) << 8)
+  end
+
+  def self.get_u32(s, i)
+    s.getbyte(i) |
+      (s.getbyte(i + 1) << 8) |
+      (s.getbyte(i + 2) << 16) |
+      (s.getbyte(i + 3) << 24)
   end
 end
