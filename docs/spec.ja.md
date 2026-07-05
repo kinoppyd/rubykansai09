@@ -91,13 +91,13 @@ Field order は Flags、存在する場合は wheel pair、存在する場合は
 
 ### SC Control Point
 
-Wheel revolution data または multiple sensor locations をサポートする場合に実装します。主な procedure は次の通りです。
+Wheel revolution data または multiple sensor locations をサポートする場合は必須です。主な procedure は次の通りです。
 
 - 累積ホイール回転数の設定。
 - センサ位置の更新。
 - サポートされるセンサ位置の要求。
 
-最小構成の自作センサでは、BLE スタックが indication を扱えるなら実装するのが望ましいです。実装しなくても動作するサイコンはありますが、conformance は下がります。
+Crank-only sensor ではこの version の SC Control Point は除外されます。Wheel revolution data を送るsensorで省略すると、実用上接続できるサイコンがあっても CSCS 準拠にはなりません。
 
 ## BLE Cycling Power Service
 

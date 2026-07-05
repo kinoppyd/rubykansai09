@@ -91,13 +91,13 @@ Typical notification interval is approximately once per second. The interval is 
 
 ### SC Control Point
 
-Implement this if the sensor supports wheel revolution data or multiple sensor locations. Useful procedures include:
+This is mandatory if the sensor supports wheel revolution data or multiple sensor locations. Relevant procedures include:
 
 - Set cumulative wheel revolution value.
 - Update sensor location.
 - Request supported sensor locations.
 
-For a minimal custom sensor, implement it if your BLE stack can support indications cleanly. Some cycling computers still work without it, but omitting it reduces conformance.
+The SC Control Point is excluded for a crank-only sensor in this service version. A wheel sensor that omits it may still connect to some cycling computers, but it is not CSCS-conformant.
 
 ## BLE Cycling Power Service
 
