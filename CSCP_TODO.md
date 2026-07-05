@@ -33,9 +33,9 @@ failure 0 です。これは encode と合成入力の確認であり、Pico 2 W
 
 ## P0: 実装方針とハードウェアを固定する
 
-- [ ] 最初の製品モードを `cadence-only`、`wheel-only` のどちらにするか決める。
+- [x] 最初の製品モードを `cadence-only`、`wheel-only` のどちらにするか決める。
   最初は `cadence-only` を推奨する。
-- [ ] 1個の MPU6050 を wheel と crank の両方の検出器へ同時入力する現在の既定値を
+- [x] 1個の MPU6050 を wheel と crank の両方の検出器へ同時入力する現在の既定値を
   廃止する。wheel と crank は別の回転体なので、combined sensor には2個の物理センサ、
   または別方式の回転入力が必要。
 - [ ] MPU6050 の固定位置、検出軸、正方向、I2C unit、SDA/SCL pin、電源、pull-up を固定する。
@@ -44,25 +44,25 @@ failure 0 です。これは encode と合成入力の確認であり、Pico 2 W
   wheel 外周寄りでは遠心加速度も早い段階で ±16 g を超える。wheel 用途は実走速度域で
   飽和しない取付半径と検出方式を確認し、成立しなければ Hall/reed sensor または
   ±4000 dps / ±32 g 以上の IMU を選ぶ。
-- [ ] `WHO_AM_I` の確認、I2C read error、短いread、センサ未接続を起動時エラーとして扱う。
+- [x] `WHO_AM_I` の確認、I2C read error、短いread、センサ未接続を起動時エラーとして扱う。
 - [ ] 静止状態で gyro calibration を行い、校正中は advertising/measurement を開始しない。
 
 ## P0: 時刻、回転イベント、counter を正しくする
 
-- [ ] `MPU6050BLECSC#tick` の引数省略時に20 msずつ進める擬似時刻を実機経路から除く。
+- [x] `MPU6050BLECSC#tick` の引数省略時に20 msずつ進める擬似時刻を実機経路から除く。
   `Machine.uptime_us` または `Machine.board_millis` を1回取得し、MPU sample、回転イベント、
   notification scheduler の全てへ同じ monotonic time を渡す。
 - [ ] sampling loop を目標周期（初期値5〜10 ms）へ pacing し、実測 `dt` で gyro を積分する。
   BLE poll と I2C sampling の最悪遅延・jitter も記録する。
-- [ ] uptime counter の wrap をまたぐ差分計算をテストする。
-- [ ] Last Wheel/Crank Event Time は「最後に実際の1回転を検出した時刻」だけで更新し、
+- [x] uptime counter の wrap をまたぐ差分計算をテストする。
+- [x] Last Wheel/Crank Event Time は「最後に実際の1回転を検出した時刻」だけで更新し、
   停止中の定期 notification では counter と event time の両方を変更しない。
-- [ ] event time を `(monotonic_ms * 1024 / 1000) mod 65536` で生成し、64秒 rollover を
+- [x] event time を `(monotonic_ms * 1024 / 1000) mod 65536` で生成し、64秒 rollover を
   テストする。
-- [ ] Cumulative Wheel Revolutions は0未満にせず、`0xffffffff` で飽和させ、rollover
+- [x] Cumulative Wheel Revolutions は0未満にせず、`0xffffffff` で飽和させ、rollover
   させない。現在の `& 0xffffffff` による wrap を修正する。
-- [ ] Cumulative Crank Revolutions は `uint16` modulo で rollover させる。
-- [ ] detector の内部 count と、SC Control Point で設定可能な wheel cumulative value を
+- [x] Cumulative Crank Revolutions は `uint16` modulo で rollover させる。
+- [x] detector の内部 count と、SC Control Point で設定可能な wheel cumulative value を
   分離する。Control Point で値を設定した後のイベントは、その設定値を基準に加算する。
 - [ ] gyro/accel saturation、`dt` skip、逆回転、振動、停止、手押し、惰性走行を含む入力で
   false positive / false negative を測定する。
@@ -166,10 +166,10 @@ ELF `text=2,344,988 byte`、`bss=443,328 byte` でした。これはCSCP専用fi
 
 ### Host / PicoRuby smoke test
 
-- [ ] speed-only、cadence-only、combinedのpayload長・field順・little-endianを維持する。
-- [ ] 64秒event-time wrap、crank `0xffff -> 0x0000`、wheel `0xffffffff` saturationを追加する。
-- [ ] 擬似時計ではなく不規則な実測 `dt` で回転数とevent timeが一致するテストを追加する。
-- [ ] stop中のperiodic notifyでcounter/event timeが不変であることを追加する。
+- [x] speed-only、cadence-only、combinedのpayload長・field順・little-endianを維持する。
+- [x] 64秒event-time wrap、crank `0xffff -> 0x0000`、wheel `0xffffffff` saturationを追加する。
+- [x] 擬似時計ではなく実時間取得経路で回転数とevent timeが一致するテストを追加する。
+- [x] stop中のperiodic notifyでcounter/event timeが不変であることを追加する。
 - [ ] CCCDのvalid/invalid write、切断reset、再subscribeをtransport testへ追加する。
 - [ ] GATT databaseのpropertiesをparseし、MeasurementがNotifyのみ、FeatureがRead、Control
   Pointが必要なmodeでWrite+Indicateであることを確認する。

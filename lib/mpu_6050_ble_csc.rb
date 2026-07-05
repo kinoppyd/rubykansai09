@@ -4,7 +4,7 @@
 #   i2c = I2C.new(unit: :RP2040_I2C0, frequency: 400_000, sda_pin: 4, scl_pin: 5)
 #   mpu = MPU6050.new(i2c, :gyro_range_dps => 500, :sample_interval_ms => 10)
 #   ble = BLETransport::PicoRubyPeripheral.new
-#   sensor = MPU6050BLECSC.new(mpu, ble, "PicoRuby CSC", :z, :x)
+#   sensor = MPU6050BLECSC.new(mpu, ble, "PicoRuby CSC", nil, :x)
 #   sensor.start
 #   loop do
 #     sensor.tick
@@ -19,7 +19,7 @@ require "mpu_6050/rotation_detector"
 require "ble_csc_service"
 
 class MPU6050BLECSC
-  def initialize(mpu, ble, name = "PicoRuby CSC", wheel_axis = :z, crank_axis = :x,
+  def initialize(mpu, ble, name = "PicoRuby CSC", wheel_axis = nil, crank_axis = :x,
                  wheel_min_ms = 120, crank_min_ms = 250, notify_interval_ms = 1000,
                  sensor_location = nil, wheel_direction = 1, crank_direction = 1)
     @mpu = mpu
@@ -34,8 +34,9 @@ class MPU6050BLECSC
     @wheel_direction = wheel_direction
     @crank_direction = crank_direction
     @started = false
-    @time_ms = 0
     @last_sample = nil
+    @last_wheel_count = 0
+    @last_crank_count = 0
   end
 
   def mpu
@@ -84,32 +85,32 @@ class MPU6050BLECSC
 
   def tick(time_ms = nil)
     start unless @started
-    time_ms = @time_ms + 20 if time_ms.nil?
-    @time_ms = time_ms
-    event_seen = false
-    @last_sample = @mpu.sample(time_ms)
+    if time_ms.nil?
+      @last_sample = @mpu.sample_now
+      time_ms = @last_sample.time_ms
+    else
+      @last_sample = @mpu.sample(time_ms)
+    end
 
     if @wheel_detector
       event = @wheel_detector.update(@last_sample)
       if event
-        @service.update_wheel(event.count, event.time_ms)
-        event_seen = true
+        delta = event.count - @last_wheel_count
+        @last_wheel_count = event.count
+        @service.add_wheel(delta, event.time_ms)
       end
     end
 
     if @crank_detector
       event = @crank_detector.update(@last_sample)
       if event
-        @service.update_crank(event.count, event.time_ms)
-        event_seen = true
+        delta = event.count - @last_crank_count
+        @last_crank_count = event.count
+        @service.add_crank(delta, event.time_ms)
       end
     end
 
-    if event_seen
-      @service.notify(time_ms)
-    else
-      @service.notify_if_due(time_ms)
-    end
+    @service.notify_if_due(time_ms)
 
     true
   end

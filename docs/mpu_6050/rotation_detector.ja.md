@@ -14,6 +14,7 @@ PicoRuby/R2P2 上で、自転車のホイールやクランクの回転を検出
 - `gyro_x`, `gyro_y`, `gyro_z`: 各軸の角速度。単位は degrees per second。
 - `accel_x`, `accel_y`, `accel_z`: 各軸の加速度。単位は g。
 - `accel_saturated?`: 任意。`MPU6050` が返す飽和フラグ。true の場合、加速度の生値がセンサの上限付近にあります。
+- `gyro_saturated?`: 任意。true の場合、ジャイロの生値がセンサの上限付近にあります。
 
 `MPU6050#sample_now` は MPU オブジェクト自身を返します。そのため、検出器は配列やハッシュを作らずに、スカラーの reader だけで値を読めます。
 
@@ -138,6 +139,10 @@ MPU6050::RotationDetector.new(axis, min_period_ms, direction)
 
 これにより、急な加速や振動を、回転位相の変化として誤検出しにくくします。
 
+`gyro_saturated?` が true の場合は、clippingした角速度を積分すると回転数を過小評価するため、
+そのサンプルのジャイロ積分を使いません。加速度位相が有効ならフォールバックし、加速度も
+飽和していればそのサンプルでは角度を進めません。
+
 ## デバッグ値
 
 検出器は、調整用に軽量なスカラー reader を提供します。
@@ -149,7 +154,8 @@ MPU6050::RotationDetector.new(axis, min_period_ms, direction)
 - `angle`: 現在の積算角。単位はラジアン。
 - `phase`: 最新の加速度位相。単位はラジアン。
 - `phase_valid?`: 現在の加速度位相が使えるか。
-- `saturated?`: 現在のサンプルで加速度が飽和しているか。
+- `saturated?`: 現在のサンプルで加速度またはジャイロが飽和しているか。
+- `gyro_saturated?`: 現在のサンプルでジャイロが飽和しているか。
 - `dt_skipped?`: `dt` が大きすぎるため現在のサンプルを無視したか。
 
 調整時に特に見るべき値は次の通りです。

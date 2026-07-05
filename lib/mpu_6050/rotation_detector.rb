@@ -31,6 +31,7 @@ class MPU6050
       @delta = 0.0
       @gyro = 0.0
       @sat = false
+      @gyro_sat = false
       @dt_skip = false
       @sum = 0.0
       @last = nil
@@ -80,7 +81,11 @@ class MPU6050
     end
 
     def saturated?
-      @sat
+      @sat || @gyro_sat
+    end
+
+    def gyro_saturated?
+      @gyro_sat
     end
 
     def dt_skipped?
@@ -90,6 +95,7 @@ class MPU6050
     def update(s)
       t = s.time_ms
       @sat = accel_saturated_sample?(s)
+      @gyro_sat = gyro_saturated_sample?(s)
       p = nil
       ad = 0.0
 
@@ -160,6 +166,7 @@ class MPU6050
         @dt_skip = true
         return 0.0
       end
+      return 0.0 if @gyro_sat
       return 0.0 if g.nil?
       ag = g < 0.0 ? -g : g
       return 0.0 if ag < @dead
@@ -189,6 +196,10 @@ class MPU6050
 
     def accel_saturated_sample?(s)
       s.respond_to?(:accel_saturated?) && s.accel_saturated?
+    end
+
+    def gyro_saturated_sample?(s)
+      s.respond_to?(:gyro_saturated?) && s.gyro_saturated?
     end
 
     def wrap(v)

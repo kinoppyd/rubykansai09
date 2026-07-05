@@ -35,7 +35,11 @@ class MPU6050
     @gy = 0.0
     @gz = 0.0
     @sat = false
+    @gsat = false
     @sat_raw = opt(o, :accel_saturation_raw, 32000)
+    @gsat_raw = opt(o, :gyro_saturation_raw, 32700)
+    @sample_buffer = fixed_buffer(14)
+    @identity_buffer = fixed_buffer(1)
     configure(o) if opt(o, :auto_configure, true)
   end
 
@@ -75,6 +79,16 @@ class MPU6050
     @sat
   end
 
+  def gyro_saturated?
+    @gsat
+  end
+
+  def verify_identity
+    b = read_exact(1, 0x75)
+    return true if b.getbyte(0) == 0x68
+    raise IOError, "MPU6050 identity mismatch"
+  end
+
   def configure(o = nil)
     w(0x6B, 1)
     w(0x19, opt(o, :sample_rate_divider, 7))
@@ -86,20 +100,24 @@ class MPU6050
 
   def sample(t = nil)
     t = now_ms if t.nil?
+    b = read_exact(14, 0x3B)
     @dt = @lt ? (t - @lt).to_f / 1000.0 : 0.0
     @time_ms = t
     @lt = t
-    b = @i2c.read(@ad, 14, 0x3B)
     rax = i16(b, 0)
     ray = i16(b, 2)
     raz = i16(b, 4)
+    rgx = i16(b, 8)
+    rgy = i16(b, 10)
+    rgz = i16(b, 12)
     @sat = raw_abs(rax) >= @sat_raw || raw_abs(ray) >= @sat_raw || raw_abs(raz) >= @sat_raw
+    @gsat = raw_abs(rgx) >= @gsat_raw || raw_abs(rgy) >= @gsat_raw || raw_abs(rgz) >= @gsat_raw
     @ax = rax / @as
     @ay = ray / @as
     @az = raz / @as
-    @gx = i16(b, 8) / @gs - @gox
-    @gy = i16(b, 10) / @gs - @goy
-    @gz = i16(b, 12) / @gs - @goz
+    @gx = rgx / @gs - @gox
+    @gy = rgy / @gs - @goy
+    @gz = rgz / @gs - @goz
     self
   end
 
@@ -108,11 +126,12 @@ class MPU6050
   end
 
   def calibrate_gyro(n = 200, wait_ms = 5)
+    raise ArgumentError, "sample count must be positive" if n <= 0
     sx = 0.0
     sy = 0.0
     sz = 0.0
     n.times do
-      b = @i2c.read(@ad, 14, 0x3B)
+      b = read_exact(14, 0x3B)
       sx += i16(b, 8) / @gs
       sy += i16(b, 10) / @gs
       sz += i16(b, 12) / @gs
@@ -140,6 +159,27 @@ class MPU6050
 
   def w(r, v)
     @i2c.write(@ad, r, v)
+  end
+
+  def read_exact(n, r)
+    if @i2c.respond_to?(:read_into)
+      b = n == 14 ? @sample_buffer : @identity_buffer
+      @i2c.read_into(@ad, b, r)
+    else
+      b = @i2c.read(@ad, n, r)
+    end
+    return b if b.is_a?(String) && b.bytesize >= n
+    raise IOError, "MPU6050 short read"
+  end
+
+  def fixed_buffer(n)
+    s = String.new
+    i = 0
+    while i < n
+      s << 0
+      i += 1
+    end
+    s
   end
 
   def i16(b, i)
@@ -187,13 +227,19 @@ class MPU6050
 
   def real_time_ms
     if Object.const_defined?(:Machine)
-      return Machine.board_millis if Machine.respond_to?(:board_millis)
       return Machine.uptime_us / 1000 if Machine.respond_to?(:uptime_us)
+      return Machine.board_millis if Machine.respond_to?(:board_millis)
     end
     now_ms
   end
 
   def delay(ms)
-    nil
+    if Object.const_defined?(:Machine) && Machine.respond_to?(:delay_ms)
+      Machine.delay_ms(ms)
+    elsif Kernel.respond_to?(:sleep_ms)
+      sleep_ms ms
+    else
+      sleep(ms / 1000.0)
+    end
   end
 end

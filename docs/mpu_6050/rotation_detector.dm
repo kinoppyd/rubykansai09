@@ -14,6 +14,7 @@ The detector uses gyro integration as the primary signal. Accelerometer phase is
 - `gyro_x`, `gyro_y`, `gyro_z`: angular velocity in degrees per second.
 - `accel_x`, `accel_y`, `accel_z`: acceleration in g.
 - `accel_saturated?`: optional flag from `MPU6050`; true means accelerometer raw values are near the sensor limit.
+- `gyro_saturated?`: optional flag; true means gyroscope raw values are near the sensor limit.
 
 `MPU6050#sample_now` returns the MPU object itself, so the detector can read these scalar values without allocating arrays or hashes.
 
@@ -129,6 +130,9 @@ This reset matters because otherwise the next valid accelerometer sample could c
 
 `MPU6050#sample` marks `accel_saturated?` when any raw accelerometer channel is near the configured limit.
 
+It also marks `gyro_saturated?`. A clipped gyro sample is not integrated because doing so would
+systematically undercount rotations. Valid accelerometer phase remains available as a fallback.
+
 When `accel_saturated?` is true:
 
 - `saturated?` returns `true`;
@@ -149,7 +153,8 @@ The detector exposes lightweight scalar readers for tuning:
 - `angle`: current accumulated angle in radians.
 - `phase`: latest accelerometer phase in radians.
 - `phase_valid?`: whether the current accelerometer phase was usable.
-- `saturated?`: whether the current sample was accelerometer-saturated.
+- `saturated?`: whether the current sample was accelerometer- or gyroscope-saturated.
+- `gyro_saturated?`: whether the current gyroscope sample was saturated.
 - `dt_skipped?`: whether the current sample was ignored because `dt` was too large.
 
 For tuning, the most useful values are:

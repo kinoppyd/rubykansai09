@@ -21,6 +21,7 @@ class BLECSCService
 
   FEATURE_WHEEL = 1
   FEATURE_CRANK = 2
+  MAX_WHEEL_REVOLUTIONS = 0xffffffff
 
   def initialize(transport, name = "PicoRuby CSC", wheel = true, crank = true, sensor_location = nil, notify_interval_ms = 1000)
     @transport = transport
@@ -88,7 +89,9 @@ class BLECSCService
 
   def update_wheel(revolutions, time_ms)
     return false unless @wheel_supported
-    @wheel_revolutions = revolutions < 0 ? 0 : (revolutions & 0xffffffff)
+    @wheel_revolutions = revolutions
+    @wheel_revolutions = 0 if @wheel_revolutions < 0
+    @wheel_revolutions = MAX_WHEEL_REVOLUTIONS if MAX_WHEEL_REVOLUTIONS < @wheel_revolutions
     @wheel_event_time = event_time_ticks(time_ms)
     true
   end
@@ -100,6 +103,16 @@ class BLECSCService
     true
   end
 
+  def add_wheel(revolutions, time_ms)
+    return false unless @wheel_supported
+    update_wheel(@wheel_revolutions + revolutions, time_ms)
+  end
+
+  def add_crank(revolutions, time_ms)
+    return false unless @crank_supported
+    update_crank(@crank_revolutions + revolutions, time_ms)
+  end
+
   def notify(now_ms = nil)
     @last_notify_ms = now_ms
     @transport.notify(@measurement_characteristic, measurement_payload)
@@ -107,7 +120,8 @@ class BLECSCService
 
   def notify_if_due(now_ms)
     return notify(now_ms) if @last_notify_ms.nil?
-    return notify(now_ms) if @notify_interval_ms <= (now_ms - @last_notify_ms)
+    elapsed = (now_ms - @last_notify_ms) & 0xffffffff
+    return notify(now_ms) if @notify_interval_ms <= elapsed
     false
   end
 
