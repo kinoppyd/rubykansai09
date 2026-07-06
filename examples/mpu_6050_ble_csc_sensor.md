@@ -29,35 +29,26 @@ bare MPU6050ではSDA/SCLを3.3 Vへ4.7 kΩ程度でpull-upします。breakout 
 
 最初に`docs/ble/cscp_sensor.ja.md`の手順でPicoRubyとBTstack patchを適用し、標準の
 `r2p2:picoruby:pico2_w:prod` firmwareをbuildして書き込みます。patchにはnative CSCS
-server、固定長BLE event ring、再利用I2C buffer APIが含まれます。R2P2の`main_task.rb`、
-`main.c`、USB、CMakeの起動処理は変更しません。
+server、固定長BLE event ring、再利用I2C buffer APIに加え、IRBのcompiler options二重解放を
+修正するPicoRuby公式patchのbackportが含まれます。R2P2の`main_task.rb`、`main.c`、USB、
+CMakeの起動処理は変更しません。
 
-## `.mrb`を配置する
+## Ruby sourceを配置する
 
-次のsourceを`mrbc-prism`で個別にcompileし、R2P2 filesystem上でも同じload pathになるよう
-配置します。
+`build/cscp_r2p2_app`以下のRuby sourceを、同じpathでR2P2 filesystemへ転送します。
 
 ```text
-/lib/ble_transport.mrb
-/lib/ble_transport/picoruby_peripheral.mrb
-/lib/mpu_6050.mrb
-/lib/mpu_6050/rotation_detector.mrb
-/home/app.mrb
+/lib/ble_transport.rb
+/lib/ble_transport/picoruby_peripheral.rb
+/lib/mpu_6050.rb
+/lib/mpu_6050/rotation_detector.rb
+/home/app.rb
 ```
 
-例:
+転送後、R2P2 shellから次を実行します。
 
 ```sh
-tmp/picoruby/bin/mrbc-prism -oble_transport.mrb lib/ble_transport.rb
-tmp/picoruby/bin/mrbc-prism -oapp.mrb examples/mpu_6050_ble_csc_sensor.rb
-```
-
-残り3 sourceも同様にcompileして上記pathへ配置し、Pico 2 Wを再起動します。標準R2P2の
-起動処理が`/home/app.mrb`を自動的にloadします。一時的に手動実行する場合は、R2P2 shellで
-次を実行します。
-
-```sh
-load "/home/app.mrb"
+load "/home/app.rb"
 ```
 
 起動時はクランクを約1秒静止させます。校正が完了するまでadvertisingは始まりません。

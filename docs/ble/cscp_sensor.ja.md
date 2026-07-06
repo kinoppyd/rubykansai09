@@ -1,6 +1,6 @@
 # Pico 2 W / PicoRubyでCSCPセンサを作るための調査記録
 
-最終確認日: 2026-07-05 JST
+最終確認日: 2026-07-07 JST
 
 ## 調査対象
 
@@ -116,25 +116,29 @@ TLV設定を実機で確認する必要があります。
 ## CSCP sensor用PicoRuby patch
 
 このリポジトリの実装はPicoRuby `bc559024` と、そのPico SDK内のBTstack
-`501e6d2b8` に対する次の2 patchを必要とします。
+`501e6d2b8` に対する次の3 patchを必要とします。
 
 - `patches/picoruby-cscp-sensor.patch`: native CSCS wrapper、広告interval指定、
   LE Connection Complete転送、4-slot固定長event ring、allocation-free
   `I2C#read_into`
 - `patches/btstack-cscp-server.patch`: CCCD値とControl Point長の検証、切断時reset、
   indication完了/timeout、Crank Revolutionのuint16 rollover、通知要求の重複抑止
+- `patches/picoruby-r2p2-irb-stability.patch`: PicoRuby upstream `cc61312c`のbackport。
+  Sandboxのcompiler options二重解放を防ぎ、IRBの繰り返しcompileによるheap破壊を修正
 
 プロジェクトrootから適用します。BTstackは入れ子のsubmoduleなので別に適用します。
 
 ```sh
 git -C tmp/picoruby apply "$(pwd)/patches/picoruby-cscp-sensor.patch"
+git -C tmp/picoruby apply "$(pwd)/patches/picoruby-r2p2-irb-stability.patch"
 git -C tmp/picoruby/mrbgems/picoruby-r2p2/lib/pico-sdk/lib/btstack \
   apply "$(pwd)/patches/btstack-cscp-server.patch"
 ```
 
-この2 patchは`picoruby-ble`、`picoruby-i2c`、BTstackだけを変更します。
+CSCP用の2 patchは`picoruby-ble`、`picoruby-i2c`、BTstackだけを変更します。
+IRB安定化patchは`picoruby-sandbox`だけを変更します。
 `picoruby-r2p2`の`main_task.rb`、`main.c`、USB descriptor、CMake起動経路は変更しません。
-センサは標準R2P2 filesystemの`/home/app.mrb`として実行します。
+センサは標準R2P2 filesystemへRuby sourceとして転送し、`/home/app.rb`を実行します。
 
 Pico 2 W production buildはRuby 3.4以降で実行します。
 

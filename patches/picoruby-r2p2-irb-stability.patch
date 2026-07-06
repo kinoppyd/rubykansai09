@@ -1,0 +1,14 @@
+diff --git a/mrbgems/picoruby-sandbox/src/sandbox.c b/mrbgems/picoruby-sandbox/src/sandbox.c
+index aae2825c..f50f4ac8 100644
+--- a/mrbgems/picoruby-sandbox/src/sandbox.c
++++ b/mrbgems/picoruby-sandbox/src/sandbox.c
+@@ -21,9 +21,6 @@ static void
+ free_ccontext(SandboxState *ss)
+ {
+   if (ss->cc) {
+-    if (ss->cc->options) {
+-      pm_options_free(ss->cc->options);
+-    }
+     mrc_ccontext_free(ss->cc);
+     ss->cc = NULL;
+   }
