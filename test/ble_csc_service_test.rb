@@ -19,6 +19,12 @@ class BLECSCServiceTest < Minitest::Test
     assert_equal 0x12345678, BLETransport.get_u32("\x78\x56\x34\x12", 0)
   end
 
+  def test_shared_csc_event_time_ticks
+    assert_equal 0, BLETransport.csc_event_time_ticks(0)
+    assert_equal 1_024, BLETransport.csc_event_time_ticks(1_000)
+    assert_equal 0, BLETransport.csc_event_time_ticks(64_000)
+  end
+
   def test_speed_only_payload
     transport = BLETransport::Fake.new
     service = BLECSCService.new(transport, "PicoRuby CSC", true, false)

@@ -6,10 +6,9 @@ require "machine"
 require "mpu_6050"
 require "mpu_6050/rotation_detector"
 require "ble_transport/picoruby_peripheral"
-require "mpu_6050_ble_csc"
 
 DEVICE_NAME = "PicoRuby CSC"
-SENSOR_MODE = :cadence
+CSC_FEATURE_CRANK = 2
 
 I2C_UNIT = :RP2040_I2C1
 I2C_FREQUENCY = 400_000
@@ -25,9 +24,6 @@ NOTIFY_PERIOD_MS = 1_000
 CALIBRATION_SAMPLES = 200
 CALIBRATION_WAIT_MS = 5
 
-WHEEL_AXIS = nil
-WHEEL_DIRECTION = 1
-WHEEL_MIN_PERIOD_MS = 120
 CRANK_AXIS = :x
 CRANK_DIRECTION = 1
 CRANK_MIN_PERIOD_MS = 250
@@ -37,8 +33,6 @@ DEBUG_LOG = false
 STATUS_PERIOD_MS = 60_000
 MAX_CONSECUTIVE_I2C_ERRORS = 3
 
-raise "cadence-only configuration required" unless SENSOR_MODE == :cadence
-raise "wheel axis must be disabled" unless WHEEL_AXIS.nil?
 raise "crank axis is required" if CRANK_AXIS.nil?
 
 ble = nil
@@ -65,25 +59,25 @@ begin
   puts "Keep crank still during gyro calibration" if DEBUG_LOG
   mpu.calibrate_gyro(CALIBRATION_SAMPLES, CALIBRATION_WAIT_MS)
 
-  ble = BLETransport::PicoRubyPeripheral.new
-  sensor = MPU6050BLECSC.new(
-    mpu,
-    ble,
-    DEVICE_NAME,
-    WHEEL_AXIS,
+  crank = mpu.rotation_detector(
     CRANK_AXIS,
-    WHEEL_MIN_PERIOD_MS,
     CRANK_MIN_PERIOD_MS,
-    NOTIFY_PERIOD_MS,
-    SENSOR_LOCATION,
-    WHEEL_DIRECTION,
     CRANK_DIRECTION
   )
-  sensor.start
+  ble = BLETransport::PicoRubyPeripheral.new
+  ble.setup_csc(
+    DEVICE_NAME,
+    BLETransport.u16_le(CSC_FEATURE_CRANK),
+    SENSOR_LOCATION
+  )
   ble.power_on
 
   next_sample_us = Machine.uptime_us
   last_status_ms = (next_sample_us / 1_000) & 0xffffffff
+  last_notify_ms = nil
+  last_crank_count = 0
+  crank_revolutions = 0
+  crank_event_time = 0
   max_loop_us = 0
   overruns = 0
   i2c_errors = 0
@@ -102,7 +96,14 @@ begin
     loop_start_us = now_us
     now_ms = (now_us / 1_000) & 0xffffffff
     begin
-      sensor.tick(now_ms)
+      sample = mpu.sample(now_ms)
+      event = crank.update(sample)
+      if event
+        crank_delta = event.count - last_crank_count
+        last_crank_count = event.count
+        crank_revolutions = (crank_revolutions + crank_delta) & 0xffff
+        crank_event_time = BLETransport.csc_event_time_ticks(event.time_ms)
+      end
       consecutive_i2c_errors = 0
     rescue IOError
       i2c_errors += 1
@@ -110,6 +111,12 @@ begin
       raise if consecutive_i2c_errors >= MAX_CONSECUTIVE_I2C_ERRORS
     end
     ble.poll(now_ms)
+
+    notify_elapsed = last_notify_ms.nil? ? NOTIFY_PERIOD_MS : ((now_ms - last_notify_ms) & 0xffffffff)
+    if NOTIFY_PERIOD_MS <= notify_elapsed
+      ble.notify_csc(0, 0, crank_revolutions, crank_event_time)
+      last_notify_ms = now_ms
+    end
 
     after_us = Machine.uptime_us
     loop_us = after_us - loop_start_us
@@ -123,7 +130,7 @@ begin
     status_elapsed = (now_ms - last_status_ms) & 0xffffffff
     if DEBUG_LOG && STATUS_PERIOD_MS <= status_elapsed
       puts "CSCP sensor status"
-      puts sensor.service.crank_revolutions
+      puts crank_revolutions
       puts max_loop_us
       puts overruns
       puts i2c_errors

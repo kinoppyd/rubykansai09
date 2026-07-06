@@ -165,10 +165,10 @@ class BLECSCService
   end
 
   def self.event_time_ticks(time_ms)
-    ((time_ms * 1024) / 1000) & 0xffff
+    BLETransport.csc_event_time_ticks(time_ms)
   end
 
   def event_time_ticks(time_ms)
-    ((time_ms * 1024) / 1000) & 0xffff
+    BLETransport.csc_event_time_ticks(time_ms)
   end
 end

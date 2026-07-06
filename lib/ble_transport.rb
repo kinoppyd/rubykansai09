@@ -100,4 +100,8 @@ module BLETransport
       (s.getbyte(i + 2) << 16) |
       (s.getbyte(i + 3) << 24)
   end
+
+  def self.csc_event_time_ticks(time_ms)
+    ((time_ms * 1024) / 1000) & 0xffff
+  end
 end
