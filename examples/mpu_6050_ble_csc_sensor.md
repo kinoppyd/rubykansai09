@@ -27,9 +27,10 @@ bare MPU6050ではSDA/SCLを3.3 Vへ4.7 kΩ程度でpull-upします。breakout 
 
 ## PicoRuby patchとfirmware
 
-最初に`docs/ble/cscp_sensor.ja.md`の手順でPicoRubyとBTstack patchを適用し、Pico 2 W用
-production firmwareをbuildして書き込みます。patchにはnative CSCS server、固定長BLE event
-ring、再利用I2C buffer APIが含まれます。
+最初に`docs/ble/cscp_sensor.ja.md`の手順でPicoRubyとBTstack patchを適用し、標準の
+`r2p2:picoruby:pico2_w:prod` firmwareをbuildして書き込みます。patchにはnative CSCS
+server、固定長BLE event ring、再利用I2C buffer APIが含まれます。R2P2の`main_task.rb`、
+`main.c`、USB、CMakeの起動処理は変更しません。
 
 ## `.mrb`を配置する
 
@@ -39,24 +40,24 @@ ring、再利用I2C buffer APIが含まれます。
 ```text
 /lib/ble_transport.mrb
 /lib/ble_transport/picoruby_peripheral.mrb
-/lib/ble_csc_service.mrb
 /lib/mpu_6050.mrb
 /lib/mpu_6050/rotation_detector.mrb
-/lib/mpu_6050_ble_csc.mrb
-/bin/mpu_6050_ble_csc_sensor.mrb
+/home/app.mrb
 ```
 
 例:
 
 ```sh
 tmp/picoruby/bin/mrbc-prism -oble_transport.mrb lib/ble_transport.rb
-tmp/picoruby/bin/mrbc-prism -ompu_6050_ble_csc_sensor.mrb examples/mpu_6050_ble_csc_sensor.rb
+tmp/picoruby/bin/mrbc-prism -oapp.mrb examples/mpu_6050_ble_csc_sensor.rb
 ```
 
-R2P2 shellでentry pointを実行します。
+残り3 sourceも同様にcompileして上記pathへ配置し、Pico 2 Wを再起動します。標準R2P2の
+起動処理が`/home/app.mrb`を自動的にloadします。一時的に手動実行する場合は、R2P2 shellで
+次を実行します。
 
 ```sh
-mpu_6050_ble_csc_sensor
+load "/home/app.mrb"
 ```
 
 起動時はクランクを約1秒静止させます。校正が完了するまでadvertisingは始まりません。
@@ -66,6 +67,9 @@ cadence-only sensorの値には影響しません。
 ## メモリと診断
 
 sampling loopはMPU6050の14 byte String、advertising data、native measurement stateを再利用し、
-履歴配列やsampleごとの文字列を作りません。`DEBUG_LOG = false`ではloop中にserial出力しません。
+履歴配列やsampleごとの文字列を作りません。cadence-only entry pointは汎用
+`BLECSCService`と`MPU6050BLECSC`をloadせず、native CSCS transportへ直接counterを渡します。
+配置するbytecodeは7 file、26,100 byteから5 file、20,440 byteへ減少しています。
+`DEBUG_LOG = false`ではloop中にserial出力しません。
 一時的に`true`へ変更すると60秒ごとに、crank count、最大loop時間、overrun、I2C error、
 BLE event dropを固定labelと数値だけで出力します。

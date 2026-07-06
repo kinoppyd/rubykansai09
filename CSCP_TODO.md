@@ -154,10 +154,11 @@ HCI connectionを1、GATT clientを1に制限しています。
 ELF `text=2,344,988 byte`、`bss=443,328 byte` でした。これはCSCP専用firmwareの値では
 ないため、最終buildで測り直します。
 
-- [ ] CSCP専用build configを作り、少なくとも `picoruby-ble`、`picoruby-cyw43`、
-  `picoruby-i2c`、`picoruby-machine` と必要最小限のruntimeだけを入れる。
-- [ ] `picoruby-ble-uart`、Wi-Fi/LwIP、LCD、PSG、不要なshell機能を除いた場合のflash、
-  static RAM、Ruby heapの差をmap fileで記録する。
+- [x] CSCP専用build configは作らず、標準`r2p2:picoruby:pico2_w:prod`を使用する。
+  R2P2の起動、USB、shell、`/home/app.mrb` load経路には手を加えない。
+- [x] cadence-only entry pointから汎用`BLECSCService`と`MPU6050BLECSC`のloadを除き、
+  native CSCS transportへ直接counterを渡す。配置bytecodeを7 file / 26,100 byteから
+  5 file / 20,440 byteへ削減する。
 - [x] GATT profile dataが `MAX_ATT_DB_SIZE=512` に収まることを起動時にassertする。
 - [ ] 5〜10 ms samplingと1秒notificationを1時間継続し、GC回数、最小free heap、最大loop
   latency、packet drop、I2C errorを記録する。
@@ -179,7 +180,7 @@ ELF `text=2,344,988 byte`、`bss=443,328 byte` でした。これはCSCP専用fi
   bonding済みdeviceでfirmware更新等によりFeatureを変更可能にする場合だけ、CSCS 1.0.1の
   条件に従いIndicate propertyとCCCD、再接続後のindicationを追加する。
 - [ ] SC Control Pointの全response、並行procedure、indication timeoutをテストする。
-- [x] 全7 sourceを`mrbc-prism`で個別に`.mrb`へcompileするsmoke testを実施する。
+- [x] 実行に必要な全5 sourceを`mrbc-prism`で個別に`.mrb`へcompileするsmoke testを実施する。
 
 ### 実機 / 相互接続
 

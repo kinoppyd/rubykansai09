@@ -132,6 +132,10 @@ git -C tmp/picoruby/mrbgems/picoruby-r2p2/lib/pico-sdk/lib/btstack \
   apply "$(pwd)/patches/btstack-cscp-server.patch"
 ```
 
+この2 patchは`picoruby-ble`、`picoruby-i2c`、BTstackだけを変更します。
+`picoruby-r2p2`の`main_task.rb`、`main.c`、USB descriptor、CMake起動経路は変更しません。
+センサは標準R2P2 filesystemの`/home/app.mrb`として実行します。
+
 Pico 2 W production buildはRuby 3.4以降で実行します。
 
 ```sh
@@ -139,7 +143,8 @@ cd tmp/picoruby
 ruby -S rake r2p2:picoruby:pico2_w:prod
 ```
 
-2026-07-05に両patchを適用したfull buildのコンパイルと最終linkが成功しています。
+2026-07-06に両patchを適用した標準`r2p2:picoruby:pico2_w:prod` full buildの
+コンパイルと最終linkが成功しています。
 event ringは4件のrecord metadataと共有512 byte領域を使い、最大257 byteのHCI eventへ対応
 しながら、従来のeventごとのC heap確保・解放を行いません。満杯時は最古eventを破棄し、
 切断など最新状態を残します。full buildの差分はbaseline比で`text +1,032 byte`、
