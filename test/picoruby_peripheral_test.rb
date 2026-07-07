@@ -55,6 +55,14 @@ class PicoRubyPeripheralTest < Minitest::Test
     assert_equal [2, 300, 1, 400], runtime.native_update
   end
 
+  def test_native_measurement_status_is_exposed_without_allocation
+    runtime = BLETransport::PicoRubyCSCRuntime.new("PicoRuby CSC", BLETransport.u16_le(2), 6)
+
+    assert_equal 0, runtime.measurement_status
+    runtime.native_measurement_status = 7
+    assert_equal 7, runtime.measurement_status
+  end
+
   def test_legacy_payload_parser_does_not_allocate_field_arrays
     runtime = BLETransport::PicoRubyCSCRuntime.new("PicoRuby CSC", BLETransport.u16_le(3), 6)
     payload = "\x03\x03\x00\x00\x00\x00\x04\x07\x00\x00\x06"

@@ -1,0 +1,78 @@
+diff --git a/mrbgems/picoruby-ble/include/ble_peripheral.h b/mrbgems/picoruby-ble/include/ble_peripheral.h
+--- a/mrbgems/picoruby-ble/include/ble_peripheral.h
++++ b/mrbgems/picoruby-ble/include/ble_peripheral.h
+@@ -17,5 +17,6 @@ void BLE_peripheral_csc_server_init(bool wheel_supported, bool crank_supported,
+ void BLE_peripheral_csc_server_update(int32_t wheel_revolutions, uint16_t wheel_time,
+                                       uint16_t crank_revolutions, uint16_t crank_time);
++uint8_t BLE_peripheral_csc_server_measurement_status(void);
+ 
+ #ifdef __cplusplus
+ }
+diff --git a/mrbgems/picoruby-ble/ports/rp2040/ble_peripheral.c b/mrbgems/picoruby-ble/ports/rp2040/ble_peripheral.c
+--- a/mrbgems/picoruby-ble/ports/rp2040/ble_peripheral.c
++++ b/mrbgems/picoruby-ble/ports/rp2040/ble_peripheral.c
+@@ -81,3 +81,9 @@ BLE_peripheral_csc_server_update(int32_t wheel_revolutions, uint16_t wheel_time,
+     wheel_revolutions, wheel_time, crank_revolutions, crank_time
+   );
+ }
++
++uint8_t
++BLE_peripheral_csc_server_measurement_status(void)
++{
++  return cycling_speed_and_cadence_service_server_get_measurement_status();
++}
+diff --git a/mrbgems/picoruby-ble/sig/ble.rbs b/mrbgems/picoruby-ble/sig/ble.rbs
+--- a/mrbgems/picoruby-ble/sig/ble.rbs
++++ b/mrbgems/picoruby-ble/sig/ble.rbs
+@@ -157,6 +157,7 @@ class BLE
+     def request_can_send_now_event: () -> 0
+     def csc_server_init: (Integer, Integer, Integer) -> 0
+     def csc_server_update: (Integer, Integer, Integer, Integer) -> 0
++    def csc_server_measurement_status: () -> Integer
+   # end
+ 
+   # class Broadcaster < BLE
+diff --git a/mrbgems/picoruby-ble/src/mruby/ble_peripheral.c b/mrbgems/picoruby-ble/src/mruby/ble_peripheral.c
+--- a/mrbgems/picoruby-ble/src/mruby/ble_peripheral.c
++++ b/mrbgems/picoruby-ble/src/mruby/ble_peripheral.c
+@@ -65,6 +65,12 @@ mrb_csc_server_update(mrb_state *mrb, mrb_value self)
+   return mrb_fixnum_value(0);
+ }
+ 
++static mrb_value
++mrb_csc_server_measurement_status(mrb_state *mrb, mrb_value self)
++{
++  return mrb_fixnum_value(BLE_peripheral_csc_server_measurement_status());
++}
++
+ void
+ mrb_init_class_BLE_Peripheral(mrb_state *mrb, struct RClass *class_BLE)
+ {
+@@ -75,4 +81,5 @@ mrb_init_class_BLE_Peripheral(mrb_state *mrb, struct RClass *class_BLE)
+   mrb_define_method_id(mrb, class_BLE, MRB_SYM(request_can_send_now_event), mrb_request_can_send_now_event, MRB_ARGS_NONE());
+   mrb_define_method(mrb, class_BLE, "csc_server_init", mrb_csc_server_init, MRB_ARGS_REQ(3));
+   mrb_define_method(mrb, class_BLE, "csc_server_update", mrb_csc_server_update, MRB_ARGS_REQ(4));
++  mrb_define_method(mrb, class_BLE, "csc_server_measurement_status", mrb_csc_server_measurement_status, MRB_ARGS_NONE());
+ }
+diff --git a/mrbgems/picoruby-ble/src/mrubyc/ble_peripheral.c b/mrbgems/picoruby-ble/src/mrubyc/ble_peripheral.c
+--- a/mrbgems/picoruby-ble/src/mrubyc/ble_peripheral.c
++++ b/mrbgems/picoruby-ble/src/mrubyc/ble_peripheral.c
+@@ -72,6 +72,12 @@ c_csc_server_update(mrbc_vm *vm, mrbc_value *v, int argc)
+   SET_INT_RETURN(0);
+ }
+ 
++static void
++c_csc_server_measurement_status(mrbc_vm *vm, mrbc_value *v, int argc)
++{
++  SET_INT_RETURN(BLE_peripheral_csc_server_measurement_status());
++}
++
+ void
+ mrbc_init_class_BLE_Peripheral(mrbc_vm *vm, mrbc_class *class_BLE)
+ {
+@@ -83,4 +89,5 @@ mrbc_init_class_BLE_Peripheral(mrbc_vm *vm, mrbc_class *class_BLE)
+   mrbc_define_method(vm, class_BLE, "request_can_send_now_event", c_request_can_send_now_event);
+   mrbc_define_method(vm, class_BLE, "csc_server_init", c_csc_server_init);
+   mrbc_define_method(vm, class_BLE, "csc_server_update", c_csc_server_update);
++  mrbc_define_method(vm, class_BLE, "csc_server_measurement_status", c_csc_server_measurement_status);
+ }

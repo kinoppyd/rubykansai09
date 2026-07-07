@@ -5,6 +5,7 @@ class BLE
   POLLING_UNIT_MS = 100
 
   attr_reader :native_init, :native_update, :profile_data, :advertisements, :power_events
+  attr_writer :native_measurement_status
 
   def initialize(_role, profile_data)
     @profile_data = profile_data
@@ -19,6 +20,10 @@ class BLE
 
   def csc_server_update(wheel_delta, wheel_time, crank_delta, crank_time)
     @native_update = [wheel_delta, wheel_time, crank_delta, crank_time]
+  end
+
+  def csc_server_measurement_status
+    @native_measurement_status || 0
   end
 
   def peripheral_advertise(data, min_interval, max_interval)

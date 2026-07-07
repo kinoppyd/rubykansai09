@@ -44,6 +44,10 @@ module BLETransport
       @runtime ? @runtime.event_queue_dropped : 0
     end
 
+    def measurement_status
+      @runtime ? @runtime.measurement_status : 0
+    end
+
     def start(timeout_ms = nil)
       @runtime.start(timeout_ms)
     end
@@ -136,6 +140,10 @@ module BLETransport
 
     def connected?
       @connected
+    end
+
+    def measurement_status
+      csc_server_measurement_status
     end
 
     def start_advertising(now_ms = nil)

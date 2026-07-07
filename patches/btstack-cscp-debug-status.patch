@@ -1,0 +1,32 @@
+diff --git a/src/ble/gatt-service/cycling_speed_and_cadence_service_server.c b/src/ble/gatt-service/cycling_speed_and_cadence_service_server.c
+--- a/src/ble/gatt-service/cycling_speed_and_cadence_service_server.c
++++ b/src/ble/gatt-service/cycling_speed_and_cadence_service_server.c
+@@ -424,3 +424,12 @@ void cycling_speed_and_cadence_service_server_update_values(int32_t wheel_revolu
+ 		att_server_register_can_send_now_callback(&instance->measurement_callback, instance->con_handle);
+ 	}
+ }
++
++uint8_t cycling_speed_and_cadence_service_server_get_measurement_status(void){
++	cycling_speed_and_cadence_t * instance = &cycling_speed_and_cadence;
++	uint8_t status = 0;
++	if (instance->con_handle != HCI_CON_HANDLE_INVALID) status |= 1u;
++	if (instance->measurement_client_configuration_descriptor_notify) status |= 2u;
++	if (instance->measurement_pending) status |= 4u;
++	return status;
++}
+diff --git a/src/ble/gatt-service/cycling_speed_and_cadence_service_server.h b/src/ble/gatt-service/cycling_speed_and_cadence_service_server.h
+--- a/src/ble/gatt-service/cycling_speed_and_cadence_service_server.h
++++ b/src/ble/gatt-service/cycling_speed_and_cadence_service_server.h
+@@ -107,6 +107,12 @@ void cycling_speed_and_cadence_service_server_init(uint32_t supported_sensor_loc
+  */
+ void cycling_speed_and_cadence_service_server_update_values(int32_t wheel_revolutions, uint16_t last_wheel_event_time, uint16_t crank_revolutions, uint16_t last_crank_event_time);
+ 
++/**
++ * @brief Return measurement transport state as a bit field
++ * @note bit 0: client handle assigned, bit 1: notifications enabled, bit 2: notification pending
++ */
++uint8_t cycling_speed_and_cadence_service_server_get_measurement_status(void);
++
+ /* API_END */
+ 
+ #if defined __cplusplus
