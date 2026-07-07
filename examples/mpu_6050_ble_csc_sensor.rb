@@ -1,4 +1,4 @@
-# Raspberry Pi Pico 2 W + MPU6050 cadence sensor for R2P2/PicoRuby.
+# Raspberry Pi Pico 2 W + MPU-6050/MPU-6500 cadence sensor for R2P2/PicoRuby.
 # Wiring and sensor placement must match the constants below.
 
 require "i2c"
@@ -53,7 +53,7 @@ begin
     :auto_configure => false
   )
 
-  puts "MPU6050 identity check" if DEBUG_LOG
+  puts "MPU identity check" if DEBUG_LOG
   mpu.verify_identity
   mpu.configure(:dlpf_config => DLPF_CONFIG)
   puts "Keep crank still during gyro calibration" if DEBUG_LOG

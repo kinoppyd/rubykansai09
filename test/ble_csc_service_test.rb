@@ -242,10 +242,17 @@ class BLECSCServiceTest < Minitest::Test
     assert_equal true, mpu.verify_identity
   end
 
+  def test_mpu_6500_verifies_identity
+    mpu = MPU6050.new(Identity6500I2C.new)
+
+    assert_equal true, mpu.verify_identity
+  end
+
   def test_mpu_6050_rejects_wrong_identity
     mpu = MPU6050.new(FakeI2C.new)
 
-    assert_raises(IOError) { mpu.verify_identity }
+    error = assert_raises(IOError) { mpu.verify_identity }
+    assert_equal "unsupported MPU identity 0", error.message
   end
 
   def test_mpu_6050_rejects_short_sample
@@ -374,6 +381,13 @@ class BLECSCServiceTest < Minitest::Test
   class IdentityI2C < FakeI2C
     def read(_address, length, register)
       return "\x68" if register == 0x75
+      super
+    end
+  end
+
+  class Identity6500I2C < FakeI2C
+    def read(_address, length, register)
+      return "\x70" if register == 0x75
       super
     end
   end

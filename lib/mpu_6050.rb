@@ -11,9 +11,9 @@
 #     puts event.count if event
 #   end
 #
-# Minimal MPU-6050 driver for PicoRuby. sample returns self and exposes scalar
-# accel_x/accel_y/accel_z and gyro_x/gyro_y/gyro_z readers to avoid allocating
-# arrays or hashes while sampling.
+# Minimal MPU-6050/MPU-6500 driver for PicoRuby. sample returns self and exposes
+# scalar accel_x/accel_y/accel_z and gyro_x/gyro_y/gyro_z readers to avoid
+# allocating arrays or hashes while sampling.
 
 class MPU6050
   def initialize(i2c, o = nil)
@@ -85,8 +85,9 @@ class MPU6050
 
   def verify_identity
     b = read_exact(1, 0x75)
-    return true if b.getbyte(0) == 0x68
-    raise IOError, "MPU6050 identity mismatch"
+    id = b.getbyte(0)
+    return true if id == 0x68 || id == 0x70
+    raise IOError, "unsupported MPU identity " + id.to_s
   end
 
   def configure(o = nil)

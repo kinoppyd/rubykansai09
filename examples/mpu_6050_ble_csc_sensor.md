@@ -1,8 +1,11 @@
 # Pico 2 W / MPU6050 cadence sensor
 
 `mpu_6050_ble_csc_sensor.rb`は、Raspberry Pi Pico 2 W上のR2P2/PicoRubyで動く
-cadence-only CSCP sensorのentry pointです。起動時にMPU6050を確認・校正してからBLEを
+cadence-only CSCP sensorのentry pointです。起動時にMPU-6050またはMPU-6500を確認・校正してからBLEを
 開始し、10 ms samplingと1秒measurement notificationを実行します。
+
+WHO_AM_IはMPU-6050の`0x68`とMPU-6500の`0x70`だけを受け付けます。両deviceはこの実装で
+使うregister配置、full-scale range、感度係数が共通です。未知の互換品は誤った測定値を防ぐため拒否します。
 
 ## 配線と取付
 
