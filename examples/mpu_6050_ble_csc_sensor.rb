@@ -29,8 +29,8 @@ CRANK_DIRECTION = 1
 CRANK_MIN_PERIOD_MS = 250
 SENSOR_LOCATION = 6 # Right Crank
 
-DEBUG_LOG = false
-STATUS_PERIOD_MS = 60_000
+DEBUG_LOG = true
+STATUS_PERIOD_MS = 5_000
 MAX_CONSECUTIVE_I2C_ERRORS = 3
 
 raise "crank axis is required" if CRANK_AXIS.nil?
@@ -58,6 +58,7 @@ begin
   mpu.configure(:dlpf_config => DLPF_CONFIG)
   puts "Keep crank still during gyro calibration" if DEBUG_LOG
   mpu.calibrate_gyro(CALIBRATION_SAMPLES, CALIBRATION_WAIT_MS)
+  puts "DBG calibration_complete" if DEBUG_LOG
 
   crank = mpu.rotation_detector(
     CRANK_AXIS,
@@ -82,6 +83,15 @@ begin
   overruns = 0
   i2c_errors = 0
   consecutive_i2c_errors = 0
+  sample_count = 0
+  rotation_events = 0
+  notify_updates = 0
+  saturation_count = 0
+  dt_skip_count = 0
+  gyro_min = nil
+  gyro_max = nil
+  last_ble_connected = -1
+  last_measurement_status = -1
 
   loop do
     now_us = Machine.uptime_us
@@ -98,7 +108,16 @@ begin
     begin
       sample = mpu.sample(now_ms)
       event = crank.update(sample)
+      if DEBUG_LOG
+        sample_count += 1
+        gyro = crank.gyro_dps
+        gyro_min = gyro if gyro_min.nil? || gyro < gyro_min
+        gyro_max = gyro if gyro_max.nil? || gyro_max < gyro
+        saturation_count += 1 if crank.saturated?
+        dt_skip_count += 1 if crank.dt_skipped?
+      end
       if event
+        rotation_events += 1 if DEBUG_LOG
         crank_delta = event.count - last_crank_count
         last_crank_count = event.count
         crank_revolutions = (crank_revolutions + crank_delta) & 0xffff
@@ -112,9 +131,28 @@ begin
     end
     ble.poll(now_ms)
 
+    if DEBUG_LOG
+      ble_connected = ble.connected? ? 1 : 0
+      measurement_status = ble.measurement_status
+      if ble_connected != last_ble_connected || measurement_status != last_measurement_status
+        puts "DBG ble_transition"
+        puts "connected"
+        puts ble_connected
+        puts "client_bound"
+        puts(measurement_status & 1)
+        puts "notify_enabled"
+        puts((measurement_status >> 1) & 1)
+        puts "notify_pending"
+        puts((measurement_status >> 2) & 1)
+        last_ble_connected = ble_connected
+        last_measurement_status = measurement_status
+      end
+    end
+
     notify_elapsed = last_notify_ms.nil? ? NOTIFY_PERIOD_MS : ((now_ms - last_notify_ms) & 0xffffffff)
     if NOTIFY_PERIOD_MS <= notify_elapsed
       ble.notify_csc(0, 0, crank_revolutions, crank_event_time)
+      notify_updates += 1 if DEBUG_LOG
       last_notify_ms = now_ms
     end
 
@@ -129,11 +167,50 @@ begin
 
     status_elapsed = (now_ms - last_status_ms) & 0xffffffff
     if DEBUG_LOG && STATUS_PERIOD_MS <= status_elapsed
-      puts "CSCP sensor status"
+      measurement_status = ble.measurement_status
+      diagnosis = if !ble.connected?
+        0
+      elsif (measurement_status & 2) == 0
+        1
+      elsif rotation_events == 0
+        2
+      else
+        3
+      end
+      puts "DBG status"
+      puts "diagnosis"
+      puts diagnosis
+      puts "samples"
+      puts sample_count
+      puts "gyro_now_dps"
+      puts crank.gyro_dps
+      puts "gyro_min_dps"
+      puts gyro_min
+      puts "gyro_max_dps"
+      puts gyro_max
+      puts "angle_rad"
+      puts crank.angle
+      puts "phase_valid"
+      puts(crank.phase_valid? ? 1 : 0)
+      puts "saturation_samples"
+      puts saturation_count
+      puts "dt_skips"
+      puts dt_skip_count
+      puts "rotation_events"
+      puts rotation_events
+      puts "crank_revolutions"
       puts crank_revolutions
+      puts "notify_updates"
+      puts notify_updates
+      puts "measurement_status"
+      puts measurement_status
+      puts "max_loop_us"
       puts max_loop_us
+      puts "overruns"
       puts overruns
+      puts "i2c_errors"
       puts i2c_errors
+      puts "event_queue_dropped"
       puts ble.event_queue_dropped
       last_status_ms = now_ms
     end

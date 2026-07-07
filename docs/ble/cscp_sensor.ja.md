@@ -116,7 +116,7 @@ TLV設定を実機で確認する必要があります。
 ## CSCP sensor用PicoRuby patch
 
 このリポジトリの実装はPicoRuby `bc559024` と、そのPico SDK内のBTstack
-`501e6d2b8` に対する次の3 patchを必要とします。
+`501e6d2b8` に対する次の5 patchを必要とします。
 
 - `patches/picoruby-cscp-sensor.patch`: native CSCS wrapper、広告interval指定、
   LE Connection Complete転送、4-slot固定長event ring、allocation-free
@@ -125,17 +125,23 @@ TLV設定を実機で確認する必要があります。
   indication完了/timeout、Crank Revolutionのuint16 rollover、通知要求の重複抑止
 - `patches/picoruby-r2p2-irb-stability.patch`: PicoRuby upstream `cc61312c`のbackport。
   Sandboxのcompiler options二重解放を防ぎ、IRBの繰り返しcompileによるheap破壊を修正
+- `patches/picoruby-cscp-debug-status.patch`: Rubyからnative CSCS measurement状態を取得するAPI
+- `patches/btstack-cscp-debug-status.patch`: client handle、measurement CCCD、send pendingを
+  追加RAMなしのbit fieldで返す診断API
 
 プロジェクトrootから適用します。BTstackは入れ子のsubmoduleなので別に適用します。
 
 ```sh
 git -C tmp/picoruby apply "$(pwd)/patches/picoruby-cscp-sensor.patch"
 git -C tmp/picoruby apply "$(pwd)/patches/picoruby-r2p2-irb-stability.patch"
+git -C tmp/picoruby apply "$(pwd)/patches/picoruby-cscp-debug-status.patch"
 git -C tmp/picoruby/mrbgems/picoruby-r2p2/lib/pico-sdk/lib/btstack \
   apply "$(pwd)/patches/btstack-cscp-server.patch"
+git -C tmp/picoruby/mrbgems/picoruby-r2p2/lib/pico-sdk/lib/btstack \
+  apply "$(pwd)/patches/btstack-cscp-debug-status.patch"
 ```
 
-CSCP用の2 patchは`picoruby-ble`、`picoruby-i2c`、BTstackだけを変更します。
+CSCP用と診断用のpatchは`picoruby-ble`、`picoruby-i2c`、BTstackだけを変更します。
 IRB安定化patchは`picoruby-sandbox`だけを変更します。
 `picoruby-r2p2`の`main_task.rb`、`main.c`、USB descriptor、CMake起動経路は変更しません。
 センサは標準R2P2 filesystemへRuby sourceとして転送し、`/home/app.rb`を実行します。
@@ -155,6 +161,10 @@ event ringは4件のrecord metadataと共有512 byte領域を使い、最大257 
 `bss +528 byte`でした。
 `I2C#read_into` は呼出側のStringへ直接読み込み、短いreadを例外にするため、10 ms samplingで
 14 byte Stringを毎回作りません。
+
+2026-07-08に診断APIを含むfull buildを確認しました。直前build比は`text +136 byte`、
+`bss +0 byte`です。診断状態は既存のnative CSCS構造体から計算するため、静的bufferやcounterを
+追加しません。
 
 ## 現行repository実装の差分
 

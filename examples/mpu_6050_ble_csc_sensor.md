@@ -64,6 +64,18 @@ sampling loopはMPU6050の14 byte String、advertising data、native measurement
 履歴配列やsampleごとの文字列を作りません。cadence-only entry pointは汎用
 `BLECSCService`と`MPU6050BLECSC`をloadせず、native CSCS transportへ直接counterを渡します。
 配置するbytecodeは7 file、26,100 byteから5 file、20,440 byteへ減少しています。
-`DEBUG_LOG = false`ではloop中にserial出力しません。
-一時的に`true`へ変更すると60秒ごとに、crank count、最大loop時間、overrun、I2C error、
-BLE event dropを固定labelと数値だけで出力します。
+診断版は`DEBUG_LOG = true`で、状態変化時と5秒ごとに固定labelと数値だけを出力します。
+`diagnosis`の意味は次の通りです。
+
+| 値 | 判定 |
+| ---: | --- |
+| 0 | BLE linkが未接続。pairing情報の保存だけで現在は接続していない |
+| 1 | 接続済みだがCSC Measurement CCCDが無効。サイコンがnotificationをsubscribeしていない |
+| 2 | notificationは有効だが回転eventが0。axis、direction、取付、gyro値を確認する |
+| 3 | 接続、CCCD、回転eventがすべて成立。通知経路は動作中 |
+
+`measurement_status`はbit 0がnative client handle、bit 1がnotification enable、bit 2が
+send pendingです。`gyro_min_dps`と`gyro_max_dps`が回転中もほぼ0なら`CRANK_AXIS`が違います。
+`rotation_events`だけ増えてサイコン表示が変わらない場合は、`notify_enabled`と
+`event_queue_dropped`を確認します。診断終了後は`DEBUG_LOG = false`へ戻すと、sampling loopで
+診断用の集計とserial出力を行いません。
