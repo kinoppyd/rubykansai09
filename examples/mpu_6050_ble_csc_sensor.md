@@ -21,9 +21,9 @@ WHO_AM_IはMPU-6050の`0x68`とMPU-6500の`0x70`だけを受け付けます。�
 bare MPU6050ではSDA/SCLを3.3 Vへ4.7 kΩ程度でpull-upします。breakout boardにpull-upが
 実装済みなら重ねて追加しません。AD0はGNDにしてaddress `0x68`を使います。
 
-基板を右クランクへ剛性を保って固定し、`CRANK_AXIS = :x`がクランク回転軸、
-`CRANK_DIRECTION = 1`が正転になる向きにします。取付方向が異なる場合はaxisまたはdirectionを
-変更します。走行前に`examples/mpu_6050_rotation_verify.rb`で欠落・二重計数を確認してください。
+基板を右クランクへ剛性を保って固定し、`CRANK_AXIS = :x`がクランク回転軸になるようにします。
+`CRANK_DIRECTION = 0`で取付方向の正負を両方受け付け、CSCS累積回転数はどちらでも1ずつ増やします。
+走行前に`examples/mpu_6050_rotation_verify.rb`で欠落・二重計数を確認してください。
 
 この構成はwheel speedを提供しません。wheel外周のMPU6050はgyro/accelerometerが高速で
 飽和するため、wheel sensorにはHall/reed sensorを推奨します。
@@ -82,3 +82,6 @@ send pendingです。`gyro_min_dps`と`gyro_max_dps`が回転中もほぼ0なら
 `rotation_events`だけ増えてサイコン表示が変わらない場合は、`notify_enabled`と
 `event_queue_dropped`を確認します。診断終了後は`DEBUG_LOG = false`へ戻すと、sampling loopで
 診断用の集計とserial出力を行いません。
+
+CCCDはWrite RequestとWrite Commandの両方を許可します。firmwareやGATT属性を更新した後は、
+サイコンに残ったbond/GATT cacheを削除してからセンサを再登録してください。

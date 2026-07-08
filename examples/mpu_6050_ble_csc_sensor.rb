@@ -20,7 +20,7 @@ CALIBRATION_SAMPLES = 200
 CALIBRATION_WAIT_MS = 5
 
 CRANK_AXIS = :x
-CRANK_DIRECTION = 1
+CRANK_DIRECTION = 0 # Accept either mounting orientation.
 CRANK_MIN_PERIOD_MS = 250
 SENSOR_LOCATION = 6 # Right Crank
 
@@ -65,7 +65,6 @@ begin
   next_sample_us = Machine.uptime_us
   last_status_ms = (next_sample_us / 1_000) & 0xffffffff
   last_notify_ms = nil
-  last_crank_count = 0
   crank_revolutions = 0
   crank_event_time = 0
   max_loop_us = 0
@@ -107,9 +106,9 @@ begin
       end
       if event
         rotation_events += 1 if DEBUG_LOG
-        crank_delta = event.count - last_crank_count
-        last_crank_count = event.count
-        crank_revolutions = (crank_revolutions + crank_delta) & 0xffff
+        # CSCS cumulative crank revolutions increase regardless of physical
+        # rotation direction or sensor mounting orientation.
+        crank_revolutions = (crank_revolutions + 1) & 0xffff
         crank_event_time = BLETransport.csc_event_time_ticks(event.time_ms)
       end
       consecutive_i2c_errors = 0
