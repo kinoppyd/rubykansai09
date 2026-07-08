@@ -54,6 +54,9 @@ CMakeの起動処理は変更しません。
 load "/home/app.rb"
 ```
 
+entry pointはdriver既定値（address `0x68`、gyro ±2000 dps、accel ±16 g、DLPF 3、
+10 ms sampling）をそのまま使います。起動時のoptions Hashを作らず、同じ設定を二重に書き込まないためです。
+
 起動時はクランクを約1秒静止させます。校正が完了するまでadvertisingは始まりません。
 サイコン側はcadence sensorとしてpair/connectします。wheel circumference設定はこの
 cadence-only sensorの値には影響しません。

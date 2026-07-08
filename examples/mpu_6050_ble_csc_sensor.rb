@@ -14,11 +14,6 @@ I2C_UNIT = :RP2040_I2C1
 I2C_FREQUENCY = 400_000
 SDA_PIN = 2
 SCL_PIN = 3
-MPU6050_ADDRESS = 0x68
-
-GYRO_RANGE_DPS = 2_000
-ACCEL_RANGE_G = 16
-DLPF_CONFIG = 3
 SAMPLE_PERIOD_US = 10_000
 NOTIFY_PERIOD_MS = 1_000
 CALIBRATION_SAMPLES = 200
@@ -43,19 +38,13 @@ begin
     sda_pin: SDA_PIN,
     scl_pin: SCL_PIN
   )
-  mpu = MPU6050.new(
-    i2c,
-    :address => MPU6050_ADDRESS,
-    :gyro_range_dps => GYRO_RANGE_DPS,
-    :accel_range_g => ACCEL_RANGE_G,
-    :dlpf_config => DLPF_CONFIG,
-    :sample_interval_ms => SAMPLE_PERIOD_US / 1_000,
-    :auto_configure => false
-  )
+  # Driver defaults are address 0x68, gyro +/-2000 dps, accel +/-16 g,
+  # DLPF 3, and a 10 ms sample interval. Avoid an options Hash here to keep
+  # startup allocation small and remove the options-object dispatch path.
+  mpu = MPU6050.new(i2c)
 
   puts "MPU identity check" if DEBUG_LOG
   mpu.verify_identity
-  mpu.configure(:dlpf_config => DLPF_CONFIG)
   puts "Keep crank still during gyro calibration" if DEBUG_LOG
   mpu.calibrate_gyro(CALIBRATION_SAMPLES, CALIBRATION_WAIT_MS)
   puts "DBG calibration_complete" if DEBUG_LOG
