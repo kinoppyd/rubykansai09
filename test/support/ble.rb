@@ -3,6 +3,7 @@ class BLE
   HCI_POWER_ON = 1
   HCI_POWER_OFF = 0
   POLLING_UNIT_MS = 100
+  WRITE_WITHOUT_RESPONSE = 4
 
   attr_reader :native_init, :native_update, :profile_data, :advertisements, :power_events
   attr_writer :native_measurement_status

@@ -11,6 +11,7 @@
 
 module BLETransport
   READ = 2
+  WRITE_WITHOUT_RESPONSE = 4
   WRITE = 8
   NOTIFY = 16
   INDICATE = 32

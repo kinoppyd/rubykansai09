@@ -112,7 +112,8 @@ module BLETransport
 
         g.add_service(GATT_PRIMARY_SERVICE_UUID, CSC_SERVICE_UUID) do |s|
           s.add_characteristic(NOTIFY, CSC_MEASUREMENT_UUID, DYNAMIC, "") do |c|
-            c.add_descriptor(READ | WRITE | DYNAMIC, CLIENT_CHARACTERISTIC_CONFIGURATION, "\x00\x00")
+            c.add_descriptor(READ | WRITE_WITHOUT_RESPONSE | WRITE | DYNAMIC,
+                             CLIENT_CHARACTERISTIC_CONFIGURATION, "\x00\x00")
           end
           s.add_characteristic(READ | DYNAMIC, CSC_FEATURE_UUID, READ | DYNAMIC, feature_payload)
           if sensor_location
@@ -120,7 +121,8 @@ module BLETransport
           end
           if @wheel_supported
             s.add_characteristic(WRITE | INDICATE, CSC_CONTROL_POINT_UUID, WRITE | DYNAMIC, "") do |c|
-              c.add_descriptor(READ | WRITE | DYNAMIC, CLIENT_CHARACTERISTIC_CONFIGURATION, "\x00\x00")
+              c.add_descriptor(READ | WRITE_WITHOUT_RESPONSE | WRITE | DYNAMIC,
+                               CLIENT_CHARACTERISTIC_CONFIGURATION, "\x00\x00")
             end
           end
         end

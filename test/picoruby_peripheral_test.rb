@@ -14,6 +14,9 @@ class PicoRubyPeripheralTest < Minitest::Test
     assert_equal BLETransport::NOTIFY, measurement[:properties]
     assert_equal BLETransport::DYNAMIC, measurement[:value_properties]
     assert_equal 1, measurement[:descriptors].size
+    assert_equal BLETransport::READ | BLETransport::WRITE_WITHOUT_RESPONSE |
+                 BLETransport::WRITE | BLETransport::DYNAMIC,
+                 measurement[:descriptors][0][0]
     assert_equal BLETransport::READ,
                  characteristic(BLETransport::CSC_FEATURE_UUID)[:properties] & 0xff
     assert_nil characteristic(BLETransport::CSC_CONTROL_POINT_UUID)
