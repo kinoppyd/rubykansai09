@@ -87,3 +87,5 @@ CCCD write拒否の順です。これらはログの`cccd_read`から`cccd_write
 
 CCCDはWrite RequestとWrite Commandの両方を許可します。firmwareやGATT属性を更新した後は、
 サイコンに残ったbond/GATT cacheを削除してからセンサを再登録してください。
+特にGeneric Attribute Serviceの追加は後続のCSCS attribute handleを変更するため、更新した
+`build/cscp_r2p2_app`一式を転送し、LEZYNE側の登録を削除してから再検索する必要があります。

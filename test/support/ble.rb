@@ -72,7 +72,7 @@ class BLE
     def add_service(_uuid, service_uuid)
       @service_uuid = service_uuid
       @handle_table[service_uuid] = {}
-      yield self
+      yield self if block_given?
       @service_uuid = nil
     end
 

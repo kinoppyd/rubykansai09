@@ -110,6 +110,10 @@ module BLETransport
           s.add_characteristic(READ, GAP_APPEARANCE_UUID, READ, appearance_payload)
         end
 
+        # The database is fixed for the device lifetime, so the mandatory
+        # GATT service is intentionally empty and has no Service Changed state.
+        g.add_service(GATT_PRIMARY_SERVICE_UUID, GATT_SERVICE_UUID)
+
         g.add_service(GATT_PRIMARY_SERVICE_UUID, CSC_SERVICE_UUID) do |s|
           s.add_characteristic(NOTIFY, CSC_MEASUREMENT_UUID, DYNAMIC, "") do |c|
             c.add_descriptor(READ | WRITE_WITHOUT_RESPONSE | WRITE | DYNAMIC,

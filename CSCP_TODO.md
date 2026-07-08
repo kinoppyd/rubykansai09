@@ -72,6 +72,8 @@ failure 0 です。これは encode と合成入力の確認であり、Pico 2 W
 ## P0: CSCP / CSCS 1.0.1 の GATT を完成させる
 
 - [x] GAP Peripheral、GATT Server として、Primary CSCS (`0x1816`) をちょうど1個公開する。
+- [x] 必須のGeneric Attribute Service (`0x1801`) をちょうど1個公開する。GATT databaseは
+  device lifetime中staticのため、Service Changed characteristicと接続別stateは持たない。
 - [x] GAP service に Device Name (`0x2A00`) と Appearance (`0x2A01`) を追加する。
   Appearance は speed `0x0482`、cadence `0x0483`、combined `0x0485` をモードに合わせる。
 - [x] CSC Measurement (`0x2A5B`) を `Notify` のみ、CCCD (`0x2902`) を `Read | Write` で

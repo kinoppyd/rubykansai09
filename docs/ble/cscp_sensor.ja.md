@@ -1,6 +1,6 @@
 # Pico 2 W / PicoRubyでCSCPセンサを作るための調査記録
 
-最終確認日: 2026-07-07 JST
+最終確認日: 2026-07-09 JST
 
 ## 調査対象
 
@@ -22,6 +22,7 @@ BLE Low Energyでは、センサはGAP PeripheralかつGATT Server、サイコ�
 
 | 項目 | UUID | Properties | 条件 |
 | --- | --- | --- | --- |
+| Generic Attribute Service | `0x1801` | Primary Service | 全GATT Serverで必須、1 instance。本実装は静的DBなのでcharacteristicなし |
 | Cycling Speed and Cadence Service | `0x1816` | Primary Service | 必須、1 instance |
 | CSC Measurement | `0x2A5B` | Notify | 必須 |
 | Measurement CCCD | `0x2902` | Read, Write | 必須 |

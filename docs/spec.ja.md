@@ -27,6 +27,7 @@ BLE の自転車センサは通常 peripheral かつ GATT server として動作
 
 自転車向け BLE サービスに共通する実装ルールは次の通りです。
 
+- GAP Service (`0x1800`) とGeneric Attribute Service (`0x1801`) をそれぞれ1個公開する。
 - Connectable peripheral として advertise し、対象の 16-bit service UUID を advertising data または scan response に含める。
 - 各サービスを Primary Service として公開する。
 - 自転車向けサービスの複数バイト値は little-endian にする。

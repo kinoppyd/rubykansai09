@@ -27,6 +27,7 @@ BLE cycling sensors are normally peripherals and GATT servers. The cycling compu
 
 Implementation rules that apply across the cycling BLE services:
 
+- Expose exactly one GAP Service (`0x1800`) and one Generic Attribute Service (`0x1801`).
 - Advertise as a connectable peripheral and include the relevant 16-bit service UUID in advertising or scan response data.
 - Expose each requested service as a Primary Service.
 - Use little-endian byte order for multi-byte fields in the cycling services.

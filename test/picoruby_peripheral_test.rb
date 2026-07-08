@@ -23,6 +23,14 @@ class PicoRubyPeripheralTest < Minitest::Test
     assert_equal [0, 1, 6], runtime.native_init
   end
 
+  def test_gatt_database_contains_mandatory_generic_attribute_service
+    BLETransport::PicoRubyCSCRuntime.new("PicoRuby CSC", BLETransport.u16_le(2), 6)
+
+    assert BLE::GattDatabase.last.handle_table.key?(BLETransport::GAP_SERVICE_UUID)
+    assert BLE::GattDatabase.last.handle_table.key?(BLETransport::GATT_SERVICE_UUID)
+    assert BLE::GattDatabase.last.handle_table.key?(BLETransport::CSC_SERVICE_UUID)
+  end
+
   def test_wheel_gatt_includes_control_point_and_appearance
     feature = BLETransport.u16_le(1)
     runtime = BLETransport::PicoRubyCSCRuntime.new("PicoRuby CSC", feature, 12)
