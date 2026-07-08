@@ -126,8 +126,8 @@ TLV設定を実機で確認する必要があります。
 - `patches/picoruby-r2p2-irb-stability.patch`: PicoRuby upstream `cc61312c`のbackport。
   Sandboxのcompiler options二重解放を防ぎ、IRBの繰り返しcompileによるheap破壊を修正
 - `patches/picoruby-cscp-debug-status.patch`: Rubyからnative CSCS measurement状態を取得するAPI
-- `patches/btstack-cscp-debug-status.patch`: client handle、measurement CCCD、send pendingを
-  追加RAMなしのbit fieldで返す診断API
+- `patches/btstack-cscp-debug-status.patch`: client handle、measurement CCCD、send pendingに加え、
+  Feature／Sensor Location／CCCDへのアクセス段階を追加RAMなしのbit fieldで返す診断API
 
 プロジェクトrootから適用します。BTstackは入れ子のsubmoduleなので別に適用します。
 
@@ -165,6 +165,11 @@ event ringは4件のrecord metadataと共有512 byte領域を使い、最大257 
 2026-07-08に診断APIを含むfull buildを確認しました。直前build比は`text +136 byte`、
 `bss +0 byte`です。診断状態は既存のnative CSCS構造体から計算するため、静的bufferやcounterを
 追加しません。
+
+同日のLEZYNE互換診断拡張では、CSC Feature、Sensor Location、measurement CCCDのreadと
+CCCD write到達／拒否をbit fieldへ記録します。1 byteの記録領域は構造体の既存alignment paddingを
+使用し、直前build比は`text +88 byte`、`bss +0 byte`です。切断時にbit fieldを消去するため、
+次の接続結果へ診断履歴を持ち越しません。
 
 ## 現行repository実装の差分
 

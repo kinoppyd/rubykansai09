@@ -78,7 +78,9 @@ sampling loopはMPU6050の14 byte String、advertising data、native measurement
 | 3 | 接続、CCCD、回転eventがすべて成立。通知経路は動作中 |
 
 `measurement_status`はbit 0がnative client handle、bit 1がnotification enable、bit 2が
-send pendingです。`gyro_min_dps`と`gyro_max_dps`が回転中もほぼ0なら`CRANK_AXIS`が違います。
+send pendingです。bit 3以降はCCCD read、CSC Feature read、Sensor Location read、CCCD write到達、
+CCCD write拒否の順です。これらはログの`cccd_read`から`cccd_write_rejected`にも個別表示します。
+`gyro_min_dps`と`gyro_max_dps`が回転中もほぼ0なら`CRANK_AXIS`が違います。
 `rotation_events`だけ増えてサイコン表示が変わらない場合は、`notify_enabled`と
 `event_queue_dropped`を確認します。診断終了後は`DEBUG_LOG = false`へ戻すと、sampling loopで
 診断用の集計とserial出力を行いません。

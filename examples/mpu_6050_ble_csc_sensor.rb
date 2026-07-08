@@ -132,6 +132,16 @@ begin
         puts((measurement_status >> 1) & 1)
         puts "notify_pending"
         puts((measurement_status >> 2) & 1)
+        puts "cccd_read"
+        puts((measurement_status >> 3) & 1)
+        puts "feature_read"
+        puts((measurement_status >> 4) & 1)
+        puts "sensor_location_read"
+        puts((measurement_status >> 5) & 1)
+        puts "cccd_write_seen"
+        puts((measurement_status >> 6) & 1)
+        puts "cccd_write_rejected"
+        puts((measurement_status >> 7) & 1)
         last_ble_connected = ble_connected
         last_measurement_status = measurement_status
       end
