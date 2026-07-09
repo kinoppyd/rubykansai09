@@ -27,6 +27,19 @@ class BLECycleSpeedEstimatorTest < Minitest::Test
     assert_in_delta 60.0, estimator.cadence_rpm, 0.1
   end
 
+  def test_update_stops_on_zero_delta_angle
+    moving = packet_with(3_142, 500, 1)
+    stopped = packet_with(0, 500, 2)
+    estimator = BLECycleHost::SpeedEstimator.new(2105)
+
+    estimator.update(moving)
+    refute_equal 0.0, estimator.speed_kmh
+
+    assert_equal true, estimator.update(stopped)
+    assert_equal 0.0, estimator.speed_kmh
+    assert_equal 0.0, estimator.cadence_rpm
+  end
+
   def test_update_rejects_zero_interval
     packet = packet_with(3_142, 0)
     estimator = BLECycleHost::SpeedEstimator.new(2105)
@@ -36,14 +49,48 @@ class BLECycleSpeedEstimatorTest < Minitest::Test
     assert_equal 0.0, estimator.cadence_rpm
   end
 
+  def test_tick_stops_after_timeout
+    packet = packet_with(3_142, 500)
+    estimator = BLECycleHost::SpeedEstimator.new(2105, 1_500)
+
+    estimator.update(packet, 1_000)
+
+    assert_equal false, estimator.tick(2_499)
+    refute_equal 0.0, estimator.speed_kmh
+
+    assert_equal true, estimator.tick(2_500)
+    assert_equal 0.0, estimator.speed_kmh
+    assert_equal false, estimator.tick(2_501)
+  end
+
+  def test_update_tracks_sequence_gap
+    estimator = BLECycleHost::SpeedEstimator.new(2105)
+
+    estimator.update(packet_with(3_142, 500, 1))
+    estimator.update(packet_with(3_142, 500, 3))
+
+    assert_equal 1, estimator.last_gap
+    assert_equal 1, estimator.gap_count
+  end
+
+  def test_update_handles_sequence_rollover
+    estimator = BLECycleHost::SpeedEstimator.new(2105)
+
+    estimator.update(packet_with(3_142, 500, 0xffff))
+    estimator.update(packet_with(3_142, 500, 0))
+
+    assert_equal 0, estimator.last_gap
+    assert_equal 0, estimator.gap_count
+  end
+
   private
 
-  def packet_with(delta_angle_mrad, interval_ms)
+  def packet_with(delta_angle_mrad, interval_ms, sequence = 1)
     payload = BLECyclePacket.bytes(BLECyclePacket::SIZE)
     BLECyclePacket.encode_into(
       payload,
       BLECyclePacket::FLAG_ANGLE_VALID,
-      1,
+      sequence,
       1_000,
       0,
       delta_angle_mrad,

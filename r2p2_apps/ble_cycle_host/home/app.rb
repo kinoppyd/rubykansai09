@@ -11,6 +11,7 @@ DEVICE_NAME = "PRCycle"
 DEVICE_ADDRESS = "88:A2:9E:0B:A7:DE"
 WHEEL_CIRCUMFERENCE_MM = 2105
 SCAN_STATUS_PERIOD_MS = 5000
+RX_TIMEOUT_MS = 1500
 
 def rounded_2(v)
   (v * 100.0).to_i / 100.0
@@ -35,7 +36,7 @@ puts DEVICE_ADDRESS
 central = BLECycleHost::UARTCentral.new(DEVICE_NAME, DEVICE_ADDRESS)
 central.debug = DEBUG_BLE
 central.scan_debug = DEBUG_BLE
-estimator = BLECycleHost::SpeedEstimator.new(WHEEL_CIRCUMFERENCE_MM)
+estimator = BLECycleHost::SpeedEstimator.new(WHEEL_CIRCUMFERENCE_MM, RX_TIMEOUT_MS)
 rx_count = 0
 last_connected = false
 last_status_ms = nil
@@ -60,10 +61,17 @@ central.start do |packet, reader|
     end
   end
 
-  next unless packet
+  unless packet
+    if connected && estimator.tick(now)
+      puts "speed_timeout"
+      puts "speed_kmh"
+      puts rounded_2(estimator.speed_kmh)
+    end
+    next
+  end
 
   rx_count += 1
-  estimator.update(packet)
+  estimator.update(packet, now)
 
   puts "RX"
   puts "count"

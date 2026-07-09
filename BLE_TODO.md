@@ -254,11 +254,11 @@ cadence_rpm = abs(wheel_rotations) * 60_000.0 / interval_ms
 - [x] `lib/ble_cycle_host/speed_estimator.rb` を追加する。
 - [x] wheel circumference はホスト側定数 `WHEEL_CIRCUMFERENCE_MM` として持つ。
 - [x] `delta_angle_mrad` と `interval_ms` から `speed_kmh` を計算する。
-- [ ] 停止判定を入れる。
-  - [ ] 一定時間 notification が来ない場合は速度を 0 に落とす。
-  - [ ] notification は来ているが `delta_angle_mrad == 0` が続く場合も 0 にする。
-- [ ] 必要なら小さい IIR smoothing を入れる。ただし最初は raw speed を優先して遅延を増やさない。
-- [ ] `test/ble_cycle_speed_estimator_test.rb` で 0 km/h、正回転、逆回転、interval 0、sequence gap を確認する。
+- [x] 停止判定を入れる。
+  - [x] 一定時間 notification が来ない場合は速度を 0 に落とす。
+  - [x] notification は来ているが `delta_angle_mrad == 0` が続く場合も 0 にする。
+- [x] 必要なら小さい IIR smoothing を入れる。ただし最初は raw speed を優先して遅延を増やさない。
+- [x] `test/ble_cycle_speed_estimator_test.rb` で 0 km/h、正回転、逆回転、interval 0、sequence gap を確認する。
 
 ### 6. ホスト側 R2P2 app と表示出力
 
