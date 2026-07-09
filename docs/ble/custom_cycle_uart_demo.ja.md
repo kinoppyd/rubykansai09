@@ -48,6 +48,7 @@ R2P2 の `/lib`:
 
 ```text
 lib/ble_cycle_packet.rb
+lib/ble_cycle_host/advertising_report.rb
 lib/ble_cycle_host/uart_central.rb
 lib/ble_cycle_host/uart_central_patch.rb
 lib/ble_cycle_host/speed_estimator.rb
@@ -164,7 +165,8 @@ speed_kmh
 ホスト側で `scan_reports` が 0 のままの場合、`BLE::UART` の接続処理へ進む前に
 raw central scan だけを確認する。
 
-ホスト側 Pico 2 W の `/home/app.rb` として、次を一時的に配置する。
+ホスト側 Pico 2 W の `/lib` に `lib/ble_cycle_host/advertising_report.rb` を配置し、
+`/home/app.rb` として次を一時的に配置する。
 
 ```text
 r2p2_apps/ble_cycle_scan/home/app.rb
@@ -195,6 +197,10 @@ name_match
 `scan_status` の `reports` が増えない場合、ホスト側 firmware / controller / RF の
 scan 動作が成立していない。`adv_report` は出るが `name_match` が 0 の場合、
 センサ側の advertised name とホスト側の `TARGET_NAME` が一致していない。
+
+`le_meta` / `2` が出続ける場合は、raw HCI の LE Advertising Report が届いている。
+最新の `lib/ble_cycle_host/advertising_report.rb` と
+`r2p2_apps/ble_cycle_scan/home/app.rb` を配置し直すと `adv_report` として表示される。
 
 ## MPU-6050 を使う場合
 

@@ -3,6 +3,7 @@
 # advertising reports are received before testing BLE::UART connection logic.
 
 require "ble"
+require "ble_cycle_host/advertising_report"
 
 TARGET_NAME = "PRCycle"
 SCAN_INTERVAL = 0x60
@@ -46,8 +47,26 @@ class CycleScanDebug < BLE
       @state = :TC_W4_SCAN_RESULT
       puts "scan_started"
     when GAP_EVENT_ADVERTISING_REPORT
+      print_advertising_reports(packet)
+    when HCI_EVENT_LE_META
+      if packet.getbyte(2) == BLECycleHost::AdvertisingReport::HCI_SUBEVENT_LE_ADVERTISING_REPORT
+        print_advertising_reports(packet)
+        return
+      end
+      puts "le_meta"
+      puts packet.getbyte(2)
+    else
+      @unknown_count += 1
+      if @unknown_count <= 10
+        puts "event"
+        puts event_type
+      end
+    end
+  end
+
+  def print_advertising_reports(packet)
+    BLECycleHost::AdvertisingReport.each(packet) do |report|
       @report_count += 1
-      report = AdvertisingReport.new(packet)
       name = report.reports[:complete_local_name] || report.reports[:shortened_local_name] || ""
       service128 = report.reports[:complete_list_128_bit_service_class_uuids] ||
                    report.reports[:incomplete_list_128_bit_service_class_uuids]
@@ -67,15 +86,6 @@ class CycleScanDebug < BLE
       puts(name_match ? 1 : 0)
       puts "service128_len"
       puts(service128 ? service128.bytesize : 0)
-    when HCI_EVENT_LE_META
-      puts "le_meta"
-      puts packet.getbyte(2)
-    else
-      @unknown_count += 1
-      if @unknown_count <= 10
-        puts "event"
-        puts event_type
-      end
     end
   end
 
