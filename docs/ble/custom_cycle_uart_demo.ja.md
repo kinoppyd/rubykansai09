@@ -28,6 +28,8 @@ GC9A01 の確認は後続手順で行うため、この BLE 疎通確認では
 `patches/picoruby-ble-passive-scan.patch` を適用した UF2 を使う。
 この patch は PicoRuby mruby binding の `set_scan_params(:passive, ...)` を
 true passive scan にする。
+接続完了を示す BTstack の GAP meta event を Ruby 側で受け取るため、
+`patches/picoruby-ble-central-gap-meta.patch` も同じ UF2 に適用する。
 
 ## センサ側へ配置するファイル
 
@@ -166,7 +168,7 @@ speed_kmh
 - `scan_reports` が増えない場合は、ホストが advertising report を受け取れていない。
 - `scan_reports` は増えるが `Found cycle UART device` が出ない場合は、センサ側の device name が `PRCycle` で起動しているか、ホスト側の `DEVICE_NAME` と一致しているかを確認する。
 - `Found cycle UART device` が出て `gap_connect` が `0` ではない場合は、address type や接続パラメータ側の問題を疑う。
-- `Found cycle UART device` と `gap_connect 0` は出るが `TC_W4_CONNECT` のまま止まる場合は、ホスト側 `/lib/ble_cycle_host/uart_central_patch.rb` が `HCI_EVENT_META_GAP` / `GAP_SUBEVENT_LE_CONNECTION_COMPLETE` 対応版になっているか確認する。
+- `Found cycle UART device` と `gap_connect 0` は出るが `TC_W4_CONNECT` のまま止まる場合は、UF2 に `patches/picoruby-ble-central-gap-meta.patch` が適用されているか、ホスト側 `/lib/ble_cycle_host/uart_central_patch.rb` が `HCI_EVENT_META_GAP` / `GAP_SUBEVENT_LE_CONNECTION_COMPLETE` 対応版になっているか確認する。
 - `Connected. Handle` は出るが `NUS central ready` が出ない場合は、GATT service / characteristic discovery または CCCD write の失敗を疑う。
 
 ## scan report が 0 の場合

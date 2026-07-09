@@ -1,0 +1,12 @@
+diff --git a/mrbgems/picoruby-ble/ports/rp2040/ble.c b/mrbgems/picoruby-ble/ports/rp2040/ble.c
+index dd7b1f27..4a85513c 100644
+--- a/mrbgems/picoruby-ble/ports/rp2040/ble.c
++++ b/mrbgems/picoruby-ble/ports/rp2040/ble.c
+@@ -68,6 +68,7 @@ packet_handler(uint8_t packet_type, uint16_t channel, uint8_t *packet, uint16_t
+       switch (hci_event_packet_get_type(packet)) {
+         case BTSTACK_EVENT_STATE:
+         case HCI_EVENT_LE_META:
++        case HCI_EVENT_META_GAP:
+         case GAP_EVENT_ADVERTISING_REPORT:
+         case GATT_EVENT_QUERY_COMPLETE:
+         case GATT_EVENT_SERVICE_QUERY_RESULT:
