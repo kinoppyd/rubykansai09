@@ -264,28 +264,28 @@ cadence_rpm = abs(wheel_rotations) * 60_000.0 / interval_ms
 
 - [x] tracked な copy-ready 配置として `r2p2_apps/ble_cycle_host/home/app.rb` を追加する。
 - [x] ホスト app は BLE 受信と速度計算を担当し、GC9A01 へ直接依存しない形を第一候補にする。
-- [ ] 2台構成を選ぶ場合だけ、同じ app から `GC9A01SimpleSpeedometer` へ直接 `render(speed_kmh)` する adapter を使う。
-- [ ] 3台構成を選ぶ場合、ホスト側は表示 Pico へ速度値を SPI または I2C で送る。
-- [ ] host-to-display の最小 payload を決める。
-  - [ ] version `u8`
-  - [ ] sequence `u16`
-  - [ ] speed_centi_kmh `u16`
-  - [ ] status `u8`
-- [ ] I2C 方式では、表示 Pico を I2C peripheral/slave にできるか PicoRuby/R2P2 API を確認する。難しい場合は SPI または UART へ切り替える。
-- [ ] BLE 受信のたびに `speed_kmh` を更新し、表示側への送信は 5..15 Hz 程度に制限する。
+- [x] 2台構成を選ぶ場合だけ、同じ app から `GC9A01SimpleSpeedometer` へ直接 `render(speed_kmh)` する adapter を使う。
+- [x] 3台構成を選ぶ場合、ホスト側は表示 Pico へ速度値を UART で送る。SPI/I2C は PicoRuby/R2P2 の slave API が使えるようになった後で差し替える。
+- [x] host-to-display の最小 payload を決める。
+  - [x] version `u8`
+  - [x] sequence `u16`
+  - [x] speed_centi_kmh `u16`
+  - [x] status `u8`
+- [x] I2C 方式では、表示 Pico を I2C peripheral/slave にできるか PicoRuby/R2P2 API を確認する。難しい場合は SPI または UART へ切り替える。
+- [x] BLE 受信のたびに `speed_kmh` を更新し、表示側への送信は 5..15 Hz 程度に制限する。
 - [x] serial log に connection state、sequence、interval、delta angle、speed_kmh、RSSI が取れる場合は RSSI を出す。
-- [ ] 受信なし timeout、service 不一致、subscribe 失敗を速度計表示または serial で分かるようにする。
+- [x] 受信なし timeout、service 不一致、subscribe 失敗を速度計表示または serial で分かるようにする。
 
 ### 6.5. ディスプレイ側 R2P2 app
 
-- [ ] tracked な copy-ready 配置として `r2p2_apps/ble_cycle_display/home/app.rb` を追加する。
-- [ ] GC9A01 あり firmware で動かす前提にする。
-- [ ] `require 'gc9a01_speedometer'` または `require 'gc9a01_demo_config'` の要否を firmware に合わせて確認する。
-- [ ] GC9A01 pin/frequency/brightness 定数を app 冒頭に集約する。
-- [ ] `GC9A01SimpleSpeedometer` を第一候補にする。
-- [ ] ホストから受け取った `speed_centi_kmh` を `speed_kmh` に戻して `render(speed_kmh)` する。
-- [ ] 受信 timeout 時は速度を 0 に落とし、serial に timeout を出す。
-- [ ] 2台構成ではこの app は使わず、ホスト app の display adapter を使う。
+- [x] tracked な copy-ready 配置として `r2p2_apps/ble_cycle_display/home/app.rb` を追加する。
+- [x] GC9A01 あり firmware で動かす前提にする。
+- [x] `require 'gc9a01_speedometer'` または `require 'gc9a01_demo_config'` の要否を firmware に合わせて確認する。
+- [x] GC9A01 pin/frequency/brightness 定数を app 冒頭に集約する。
+- [x] `GC9A01SimpleSpeedometer` を第一候補にする。
+- [x] ホストから受け取った `speed_centi_kmh` を `speed_kmh` に戻して `render(speed_kmh)` する。
+- [x] 受信 timeout 時は速度を 0 に落とし、serial に timeout を出す。
+- [x] 2台構成ではこの app は使わず、ホスト app の display adapter を使う。
 
 ### 7. R2P2 配置ドキュメント
 
@@ -306,6 +306,7 @@ cadence_rpm = abs(wheel_rotations) * 60_000.0 / interval_ms
 ### 8. 検証
 
 - [x] `ruby -Ilib test/ble_cycle_packet_test.rb`
+- [x] `ruby -Ilib test/ble_cycle_display_packet_test.rb`
 - [ ] `ruby -Ilib test/ble_cycle_frame_reader_test.rb`
 - [x] `ruby -Ilib test/ble_cycle_speed_estimator_test.rb`
 - [ ] 既存テスト `ruby -Ilib test/ble_csc_service_test.rb`
@@ -313,9 +314,11 @@ cadence_rpm = abs(wheel_rotations) * 60_000.0 / interval_ms
   - [x] `ruby -c lib/ble_cycle_packet.rb`
   - [x] `ruby -c lib/ble_cycle_sensor/uart_peripheral.rb`
   - [x] `ruby -c lib/ble_cycle_host/uart_central.rb`
+  - [x] `ruby -c lib/ble_cycle_display_packet.rb`
+  - [x] `ruby -c lib/ble_cycle_host/display_output.rb`
   - [x] `ruby -c r2p2_apps/ble_cycle_sensor/home/app.rb`
   - [x] `ruby -c r2p2_apps/ble_cycle_host/home/app.rb`
-  - [ ] `ruby -c r2p2_apps/ble_cycle_display/home/app.rb`
+  - [x] `ruby -c r2p2_apps/ble_cycle_display/home/app.rb`
 - [ ] PicoRuby host build がある場合、`tmp/picoruby/build/host/bin/picoruby` で packet codec の smoke test を行う。
 - [ ] センサ側だけを起動し、スマートフォン BLE scanner で以下を確認する。
   - [ ] name `PRCycle`

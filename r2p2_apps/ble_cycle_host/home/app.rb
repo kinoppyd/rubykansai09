@@ -5,13 +5,30 @@ require "machine"
 require "ble_cycle_packet"
 require "ble_cycle_host/uart_central"
 require "ble_cycle_host/speed_estimator"
+require "ble_cycle_host/display_output"
 
 DEBUG_BLE = true
+DEBUG_DISPLAY = true
 DEVICE_NAME = "PRCycle"
 DEVICE_ADDRESS = "88:A2:9E:0B:A7:DE"
 WHEEL_CIRCUMFERENCE_MM = 2105
 SCAN_STATUS_PERIOD_MS = 5000
 RX_TIMEOUT_MS = 1500
+DISPLAY_MODE = :none # :none, :uart, or :gc9a01
+DISPLAY_PERIOD_MS = 100
+DISPLAY_UART_UNIT = :RP2040_UART0
+DISPLAY_UART_TXD_PIN = 0
+DISPLAY_UART_RXD_PIN = 1
+DISPLAY_UART_BAUDRATE = 115_200
+DISPLAY_GC9A01_SPI_HOST = 0
+DISPLAY_GC9A01_PIN_SCLK = 18
+DISPLAY_GC9A01_PIN_MOSI = 19
+DISPLAY_GC9A01_PIN_CS = 17
+DISPLAY_GC9A01_PIN_DC = 20
+DISPLAY_GC9A01_PIN_RST = 21
+DISPLAY_GC9A01_PIN_BL = 22
+DISPLAY_GC9A01_SPI_FREQUENCY = 40_000_000
+DISPLAY_GC9A01_BRIGHTNESS = 180
 
 def rounded_2(v)
   (v * 100.0).to_i / 100.0
@@ -23,6 +40,69 @@ def now_ms
     return Machine.board_millis if Machine.respond_to?(:board_millis)
   end
   0
+end
+
+def display_due?(now, last)
+  last.nil? || ((now - last) & 0xffffffff) >= DISPLAY_PERIOD_MS
+end
+
+def display_status(connected, packet, reader)
+  status = connected ? BLECycleDisplayPacket::STATUS_BLE_CONNECTED : 0
+  status |= BLECycleDisplayPacket::STATUS_SEQUENCE_GAP if reader.last_gap != 0
+  if packet && (packet.flags & BLECyclePacket::FLAG_I2C_ERROR) != 0
+    status |= BLECycleDisplayPacket::STATUS_SENSOR_ERROR
+  end
+  status
+end
+
+def build_display_output
+  case DISPLAY_MODE
+  when :uart
+    require "uart"
+    uart = UART.new(
+      unit: DISPLAY_UART_UNIT,
+      txd_pin: DISPLAY_UART_TXD_PIN,
+      rxd_pin: DISPLAY_UART_RXD_PIN,
+      baudrate: DISPLAY_UART_BAUDRATE
+    )
+    puts "display_link"
+    puts "uart"
+    BLECycleHost::UARTDisplayOutput.new(uart)
+  when :gc9a01
+    require "gc9a01_speedometer"
+    GC9A01Display.configure(
+      DISPLAY_GC9A01_SPI_HOST,
+      DISPLAY_GC9A01_PIN_SCLK,
+      DISPLAY_GC9A01_PIN_MOSI,
+      DISPLAY_GC9A01_PIN_CS,
+      DISPLAY_GC9A01_PIN_DC,
+      DISPLAY_GC9A01_PIN_RST,
+      DISPLAY_GC9A01_PIN_BL,
+      DISPLAY_GC9A01_SPI_FREQUENCY
+    )
+    meter = GC9A01SimpleSpeedometer.new
+    meter.brightness = DISPLAY_GC9A01_BRIGHTNESS
+    puts "display_link"
+    puts "gc9a01"
+    BLECycleHost::GC9A01DisplayOutput.new(meter)
+  else
+    BLECycleHost::NullDisplayOutput.new
+  end
+end
+
+def write_display(output, speed_kmh, status, now)
+  return false unless output.active?
+  output.write(speed_kmh, status)
+  if DEBUG_DISPLAY
+    puts "display_tx"
+    puts "seq"
+    puts output.last_sequence
+    puts "speed_kmh"
+    puts rounded_2(speed_kmh)
+    puts "status"
+    puts status
+  end
+  now
 end
 
 puts "BLE cycle host"
@@ -37,9 +117,11 @@ central = BLECycleHost::UARTCentral.new(DEVICE_NAME, DEVICE_ADDRESS)
 central.debug = DEBUG_BLE
 central.scan_debug = DEBUG_BLE
 estimator = BLECycleHost::SpeedEstimator.new(WHEEL_CIRCUMFERENCE_MM, RX_TIMEOUT_MS)
+display_output = build_display_output
 rx_count = 0
 last_connected = false
 last_status_ms = nil
+last_display_ms = nil
 
 central.start do |packet, reader|
   now = now_ms
@@ -66,12 +148,20 @@ central.start do |packet, reader|
       puts "speed_timeout"
       puts "speed_kmh"
       puts rounded_2(estimator.speed_kmh)
+      sent_at = write_display(
+        display_output,
+        estimator.speed_kmh,
+        BLECycleDisplayPacket::STATUS_BLE_CONNECTED | BLECycleDisplayPacket::STATUS_STALE,
+        now
+      )
+      last_display_ms = sent_at if sent_at
     end
     next
   end
 
   rx_count += 1
   estimator.update(packet, now)
+  display_status_value = display_status(connected, packet, reader)
 
   puts "RX"
   puts "count"
@@ -100,4 +190,14 @@ central.start do |packet, reader|
   puts reader.gap_count
   puts "reader_dropped"
   puts reader.dropped_bytes
+
+  if display_due?(now, last_display_ms)
+    sent_at = write_display(
+      display_output,
+      estimator.speed_kmh,
+      display_status_value,
+      now
+    )
+    last_display_ms = sent_at if sent_at
+  end
 end
