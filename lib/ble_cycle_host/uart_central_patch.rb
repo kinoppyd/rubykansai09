@@ -89,6 +89,16 @@ class BLE
         name_match = @cycle_target_name && adv_report.name_include?(@cycle_target_name)
         address_match = @cycle_target_address && adv_report.address_include?(@cycle_target_address)
         if service_match || name_match || address_match
+          unless adv_report.connectable?
+            debug_puts "Matched non-connectable advertising report"
+            debug_puts "addr"
+            debug_puts Utils.bd_addr_to_str(adv_report.address)
+            debug_puts "event_type"
+            debug_puts adv_report.event_type
+            debug_puts "data_len"
+            debug_puts adv_report.data_length
+            return
+          end
           debug_puts "Found cycle UART device"
           debug_puts "addr"
           debug_puts Utils.bd_addr_to_str(adv_report.address)

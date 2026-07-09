@@ -26,15 +26,33 @@ class BLECycleAdvertisingReportTest < Minitest::Test
     assert_equal "88:A2:9E:0B:A7:DE", reports[0].address.bytes.map { |b| "%02X" % b }.join(":")
     assert_equal "88:A2:9E:0B:A7:DE", reports[0].address_string
     assert_equal true, reports[0].address_include?("88:A2:9E:0B:A7:DE")
+    assert_equal true, reports[0].connectable?
+    assert_equal false, reports[0].scan_response?
     assert_equal(-59, reports[0].rssi)
     assert_equal 30, reports[0].data_length
     assert_equal 16, reports[0].reports[:complete_list_128_bit_service_class_uuids].bytesize
   end
 
+  def test_identifies_scan_response
+    packet = raw_le_advertising_report(
+      event_type: 0x04,
+      address_bytes: [0xde, 0xa7, 0x0b, 0x9e, 0xa2, 0x88],
+      data: "",
+      rssi: -41
+    )
+
+    reports = []
+    BLECycleHost::AdvertisingReport.each(packet) { |report| reports << report }
+
+    assert_equal false, reports[0].connectable?
+    assert_equal true, reports[0].scan_response?
+    assert_equal 0, reports[0].data_length
+  end
+
   private
 
-  def raw_le_advertising_report(address_bytes:, data:, rssi:)
-    params = [0x02, 0x01, 0x00, 0x00].pack("C*")
+  def raw_le_advertising_report(address_bytes:, data:, rssi:, event_type: 0x00)
+    params = [0x02, 0x01, event_type, 0x00].pack("C*")
     params << address_bytes.pack("C*")
     params << [data.bytesize].pack("C")
     params << data

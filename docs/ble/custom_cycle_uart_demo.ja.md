@@ -206,6 +206,8 @@ scan 動作が成立していない。`adv_report` は出るが `name_match` が
 センサ側の advertised name とホスト側の `TARGET_NAME` が一致していない。
 今回のようにセンサ address は見えるが `name` と `service128_len` が空の場合は、
 `address_match 1` であれば通常のホスト app が address fallback で接続を試みる。
+ただし `event_type 4` は scan response なので接続対象にはしない。通常のホスト app は
+同じ address の connectable report を待ってから `gap_connect` する。
 
 `le_meta` / `2` が出続ける場合は、raw HCI の LE Advertising Report が届いている。
 最新の `lib/ble_cycle_host/advertising_report.rb` と

@@ -101,6 +101,18 @@ module BLECycleHost
       normalize_address(address) == normalize_address(address_string)
     end
 
+    def connectable?
+      @event_type == 0 ||
+        @event_type == 1 ||
+        @event_type == :connectable_advertising_ind ||
+        @event_type == :directed_advertising_ind
+    end
+
+    def scan_response?
+      @event_type == 4 ||
+        @event_type == :scan_response
+    end
+
     def normalize_address(address)
       address.to_s.upcase
     end

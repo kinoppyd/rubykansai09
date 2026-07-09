@@ -88,6 +88,10 @@ class CycleScanDebug < BLE
       puts report.event_type
       puts "data_len"
       puts report.data_length
+      puts "connectable"
+      puts(report.connectable? ? 1 : 0)
+      puts "scan_response"
+      puts(report.scan_response? ? 1 : 0)
       puts "address_match"
       puts(address_match ? 1 : 0)
       puts "name_match"
