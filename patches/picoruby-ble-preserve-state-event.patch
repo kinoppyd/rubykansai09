@@ -1,8 +1,23 @@
+diff --git a/mrbgems/picoruby-ble/src/ble.c b/mrbgems/picoruby-ble/src/ble.c
+index a72b21d1..84ae9e8d 100644
+--- a/mrbgems/picoruby-ble/src/ble.c
++++ b/mrbgems/picoruby-ble/src/ble.c
+@@ -14,8 +14,10 @@ static bool write_values_mutex = false;
+ static bool heatbeat_flag = false;
+ static bool packet_flag = false;
+ 
++#if defined(PICORB_VM_MRUBYC)
+ static uint8_t *packet = NULL;
+ static uint16_t packet_size = 0;
++#endif
+ 
+ #if defined(PICORB_VM_MRUBY)
+ 
 diff --git a/mrbgems/picoruby-ble/src/mruby/ble.c b/mrbgems/picoruby-ble/src/mruby/ble.c
-index ce314f54..85b0146f 100644
+index ce314f54..d975d599 100644
 --- a/mrbgems/picoruby-ble/src/mruby/ble.c
 +++ b/mrbgems/picoruby-ble/src/mruby/ble.c
-@@ -8,14 +8,59 @@ static mrb_state *_mrb = NULL;
+@@ -8,18 +8,128 @@ static mrb_state *_mrb = NULL;
  static mrb_value write_values;
  static mrb_value read_values;
  
@@ -13,6 +28,16 @@ index ce314f54..85b0146f 100644
 +#define BLE_SUBEVENT_LE_ENHANCED_CONNECTION_COMPLETE_V1 0x0a
 +#define BLE_SUBEVENT_LE_ENHANCED_CONNECTION_COMPLETE_V2 0x29
 +#define BLE_GAP_SUBEVENT_LE_CONNECTION_COMPLETE 0x08
++#define BLE_GAP_EVENT_ADVERTISING_REPORT 0xda
++#define BLE_SUBEVENT_LE_ADVERTISING_REPORT 0x02
++#define BLE_EVENT_COMMAND_COMPLETE 0x0e
++#define BLE_EVENT_COMMAND_STATUS 0x0f
++#define BLE_EVENT_QUEUE_CAPACITY 8
++
++static uint8_t *packet_queue[BLE_EVENT_QUEUE_CAPACITY] = { NULL };
++static uint16_t packet_queue_size[BLE_EVENT_QUEUE_CAPACITY] = { 0 };
++static uint8_t packet_queue_head = 0;
++static uint8_t packet_queue_count = 0;
 +
 +static bool
 +BLE_event_is_btstack_state(const uint8_t *data, uint16_t size)
@@ -41,24 +66,112 @@ index ce314f54..85b0146f 100644
 +  }
 +}
 +
++static bool
++BLE_event_is_scan_report(const uint8_t *data, uint16_t size)
++{
++  if (size == 0) return false;
++  if (data[0] == BLE_GAP_EVENT_ADVERTISING_REPORT) return true;
++  return size > 2 &&
++         data[0] == BLE_EVENT_LE_META &&
++         data[2] == BLE_SUBEVENT_LE_ADVERTISING_REPORT;
++}
++
++static bool
++BLE_event_is_discardable(const uint8_t *data, uint16_t size)
++{
++  if (BLE_event_is_btstack_state(data, size)) return false;
++  if (BLE_event_is_connection_complete(data, size)) return false;
++  if (BLE_event_is_scan_report(data, size)) return true;
++  if (size == 0) return true;
++  return data[0] == BLE_EVENT_COMMAND_COMPLETE ||
++         data[0] == BLE_EVENT_COMMAND_STATUS;
++}
++
++static void
++BLE_event_queue_remove(uint8_t offset)
++{
++  if (packet_queue_count == 0 || packet_queue_count <= offset) return;
++  uint8_t index = (packet_queue_head + offset) % BLE_EVENT_QUEUE_CAPACITY;
++  if (packet_queue[index] != NULL) {
++    mrb_free(_mrb, packet_queue[index]);
++    packet_queue[index] = NULL;
++  }
++  for (uint8_t i = offset; i + 1 < packet_queue_count; i++) {
++    uint8_t dst = (packet_queue_head + i) % BLE_EVENT_QUEUE_CAPACITY;
++    uint8_t src = (packet_queue_head + i + 1) % BLE_EVENT_QUEUE_CAPACITY;
++    packet_queue[dst] = packet_queue[src];
++    packet_queue_size[dst] = packet_queue_size[src];
++  }
++  uint8_t tail = (packet_queue_head + packet_queue_count - 1) % BLE_EVENT_QUEUE_CAPACITY;
++  packet_queue[tail] = NULL;
++  packet_queue_size[tail] = 0;
++  packet_queue_count--;
++  packet_flag = 0 < packet_queue_count;
++}
++
++static bool
++BLE_event_queue_make_room(const uint8_t *data, uint16_t size)
++{
++  if (packet_queue_count < BLE_EVENT_QUEUE_CAPACITY) return true;
++  if (BLE_event_is_discardable(data, size)) return false;
++
++  for (uint8_t i = 0; i < packet_queue_count; i++) {
++    uint8_t index = (packet_queue_head + i) % BLE_EVENT_QUEUE_CAPACITY;
++    if (BLE_event_is_discardable(packet_queue[index], packet_queue_size[index])) {
++      BLE_event_queue_remove(i);
++      return true;
++    }
++  }
++
++  BLE_event_queue_remove(0);
++  return true;
++}
++
  void
  BLE_push_event(uint8_t *data, uint16_t size)
  {
    if (packet_mutex) return;
    packet_mutex = true;
-+  if (packet_flag && packet != NULL) {
-+    bool pending_state = BLE_event_is_btstack_state(packet, packet_size);
-+    bool pending_connect = BLE_event_is_connection_complete(packet, packet_size);
-+    bool next_state = BLE_event_is_btstack_state(data, size);
-+    bool next_connect = BLE_event_is_connection_complete(data, size);
-+    if ((pending_state && !next_state) || (pending_connect && !next_connect)) {
-+      packet_mutex = false;
-+      return;
-+    }
-+  }
-   packet_flag = true;
-   packet_size = size;
-   if (packet != NULL) {
-     mrb_free(_mrb, packet);
+-  packet_flag = true;
+-  packet_size = size;
+-  if (packet != NULL) {
+-    mrb_free(_mrb, packet);
++  if (_mrb == NULL || !BLE_event_queue_make_room(data, size)) {
++    packet_mutex = false;
++    return;
    }
-   packet = mrb_malloc(_mrb, packet_size);
+-  packet = mrb_malloc(_mrb, packet_size);
+-  memcpy(packet, data, packet_size);
++
++  uint8_t tail = (packet_queue_head + packet_queue_count) % BLE_EVENT_QUEUE_CAPACITY;
++  packet_queue_size[tail] = size;
++  packet_queue[tail] = mrb_malloc(_mrb, size);
++  memcpy(packet_queue[tail], data, size);
++  packet_queue_count++;
++  packet_flag = true;
+   packet_mutex = false;
+ }
+ 
+@@ -75,12 +185,17 @@ static mrb_value
+ mrb_pop_packet(mrb_state *mrb, mrb_value self)
+ {
+   mrb_value packet_value = mrb_nil_value();
+-  if (packet_mutex || !packet_flag) return packet_value;
++  if (packet_mutex || packet_queue_count == 0) return packet_value;
+   packet_mutex = true;
+-  packet_flag = false;
+-  packet_value = mrb_str_new(mrb, (const char *)packet, packet_size);
+-  mrb_free(mrb, packet);
+-  packet = NULL;
++  uint8_t *queued_packet = packet_queue[packet_queue_head];
++  uint16_t queued_size = packet_queue_size[packet_queue_head];
++  packet_value = mrb_str_new(mrb, (const char *)queued_packet, queued_size);
++  mrb_free(mrb, queued_packet);
++  packet_queue[packet_queue_head] = NULL;
++  packet_queue_size[packet_queue_head] = 0;
++  packet_queue_head = (packet_queue_head + 1) % BLE_EVENT_QUEUE_CAPACITY;
++  packet_queue_count--;
++  packet_flag = 0 < packet_queue_count;
+   packet_mutex = false;
+   return packet_value;
+ }

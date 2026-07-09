@@ -94,11 +94,79 @@ class BLE
         _central_handle_gatt_event(event_type, event_packet)
 
       when GATT_EVENT_NOTIFICATION
-        value_handle = Utils.little_endian_to_int16(event_packet.byteslice(4, 2))
+        value_handle = Utils.little_endian_to_int16(event_packet.byteslice(8, 2))
         return unless value_handle == @peer_tx_handle
-        value_length = Utils.little_endian_to_int16(event_packet.byteslice(6, 2))
-        value = event_packet.byteslice(8, value_length)
+        value_length = Utils.little_endian_to_int16(event_packet.byteslice(10, 2))
+        value = event_packet.byteslice(12, value_length)
         @rx_buffer << value if value
+      end
+    end
+
+    def _central_handle_gatt_event(event_type, event_packet)
+      case @uart_central_state
+      when :TC_W4_SERVICE_RESULT
+        case event_type
+        when GATT_EVENT_SERVICE_QUERY_RESULT
+          if event_packet.byteslice(12, 16) == @service_uuid_bin
+            @nus_start_handle = Utils.little_endian_to_int16(event_packet.byteslice(8, 2))
+            @nus_end_handle   = Utils.little_endian_to_int16(event_packet.byteslice(10, 2))
+            debug_puts "NUS service found. Handles: #{@nus_start_handle}..#{@nus_end_handle}"
+          elsif @cycle_scan_debug
+            debug_puts "GATT service skipped"
+            debug_puts "start"
+            debug_puts Utils.little_endian_to_int16(event_packet.byteslice(8, 2))
+            debug_puts "end"
+            debug_puts Utils.little_endian_to_int16(event_packet.byteslice(10, 2))
+          end
+        when GATT_EVENT_QUERY_COMPLETE
+          if (start_h = @nus_start_handle) && (end_h = @nus_end_handle)
+            discover_characteristics_for_service(@conn_handle, start_h, end_h)
+            @uart_central_state = :TC_W4_CHAR_RESULT
+          else
+            debug_puts "NUS service not found, re-scanning"
+            _central_reset
+            start_scan
+            @uart_central_state = :TC_W4_SCAN_RESULT
+          end
+        end
+
+      when :TC_W4_CHAR_RESULT
+        case event_type
+        when GATT_EVENT_CHARACTERISTIC_QUERY_RESULT
+          value_handle = Utils.little_endian_to_int16(event_packet.byteslice(10, 2))
+          uuid_bin = event_packet.byteslice(16, 16)
+          if uuid_bin == @rx_uuid_bin
+            @peer_rx_handle = value_handle
+            debug_puts "RX handle: #{@peer_rx_handle}"
+          elsif uuid_bin == @tx_uuid_bin
+            @peer_tx_handle = value_handle
+            @peer_cccd_handle = value_handle + 1
+            debug_puts "TX handle: #{@peer_tx_handle}, CCCD: #{@peer_cccd_handle}"
+          elsif @cycle_scan_debug
+            debug_puts "GATT characteristic skipped"
+            debug_puts "value_handle"
+            debug_puts value_handle
+          end
+        when GATT_EVENT_QUERY_COMPLETE
+          if @peer_rx_handle && @peer_tx_handle && (cccd = @peer_cccd_handle)
+            write_characteristic_descriptor_using_descriptor_handle(
+              @conn_handle, cccd, "\x01\x00"
+            )
+            @uart_central_state = :TC_W4_CCCD_WRITE
+          else
+            debug_puts "NUS characteristics not found, re-scanning"
+            _central_reset
+            start_scan
+            @uart_central_state = :TC_W4_SCAN_RESULT
+          end
+        end
+
+      when :TC_W4_CCCD_WRITE
+        if event_type == GATT_EVENT_QUERY_COMPLETE
+          @connected = true
+          @uart_central_state = :TC_READY
+          debug_puts "NUS central ready"
+        end
       end
     end
 
