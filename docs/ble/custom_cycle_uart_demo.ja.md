@@ -24,6 +24,11 @@
 GC9A01 の確認は後続手順で行うため、この BLE 疎通確認では
 `patches/picoruby-gc9a01-speedometer.patch` を適用した firmware は不要。
 
+ホスト側で connectable advertising report を拾うため、
+`patches/picoruby-ble-passive-scan.patch` を適用した UF2 を使う。
+この patch は PicoRuby mruby binding の `set_scan_params(:passive, ...)` を
+true passive scan にする。
+
 ## センサ側へ配置するファイル
 
 R2P2 の `/lib`:
