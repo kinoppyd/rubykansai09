@@ -1,27 +1,64 @@
 # BLE cycle host app for R2P2/PicoRuby on Raspberry Pi Pico 2 W.
 # It receives custom BLE::UART frames and prints decoded speed values.
 
+require "machine"
 require "ble_cycle_packet"
 require "ble_cycle_host/uart_central"
 require "ble_cycle_host/speed_estimator"
 
 DEBUG_BLE = true
+DEVICE_NAME = "PRCycle"
 WHEEL_CIRCUMFERENCE_MM = 2105
+SCAN_STATUS_PERIOD_MS = 5000
 
 def rounded_2(v)
   (v * 100.0).to_i / 100.0
 end
 
+def now_ms
+  if Object.const_defined?(:Machine)
+    return Machine.uptime_us / 1000 if Machine.respond_to?(:uptime_us)
+    return Machine.board_millis if Machine.respond_to?(:board_millis)
+  end
+  0
+end
+
 puts "BLE cycle host"
 puts "wheel_circumference_mm"
 puts WHEEL_CIRCUMFERENCE_MM
+puts "target_name"
+puts DEVICE_NAME
 
-central = BLECycleHost::UARTCentral.new
+central = BLECycleHost::UARTCentral.new(DEVICE_NAME)
 central.debug = DEBUG_BLE
+central.scan_debug = DEBUG_BLE
 estimator = BLECycleHost::SpeedEstimator.new(WHEEL_CIRCUMFERENCE_MM)
 rx_count = 0
+last_connected = false
+last_status_ms = nil
 
 central.start do |packet, reader|
+  now = now_ms
+  connected = central.connected?
+  if connected != last_connected
+    puts "ble_connected"
+    puts(connected ? 1 : 0)
+    last_connected = connected
+  end
+
+  if !connected
+    elapsed = last_status_ms ? ((now - last_status_ms) & 0xffffffff) : SCAN_STATUS_PERIOD_MS
+    if elapsed >= SCAN_STATUS_PERIOD_MS
+      puts "scan_state"
+      puts central.state
+      puts "scan_reports"
+      puts central.scan_reports
+      last_status_ms = now
+    end
+  end
+
+  next unless packet
+
   rx_count += 1
   estimator.update(packet)
 
