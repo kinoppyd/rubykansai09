@@ -9,7 +9,7 @@ module BLECycleHost
     attr_reader :reader
     attr_reader :packet
 
-    def initialize(target_name = "PRCycle")
+    def initialize(target_name = "PRCycle", target_address = nil)
       @uart = BLE::UART.new(
         role: :central,
         service_uuid: BLECyclePacket::SERVICE_UUID,
@@ -17,6 +17,7 @@ module BLECycleHost
         tx_uuid: BLECyclePacket::TX_UUID
       )
       @uart.cycle_target_name = target_name
+      @uart.cycle_target_address = target_address
       @reader = BLECyclePacket::FrameReader.new
       @packet = BLECyclePacket::Decoded.new
     end

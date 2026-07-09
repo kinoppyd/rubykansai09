@@ -24,7 +24,10 @@ class BLECycleAdvertisingReportTest < Minitest::Test
     assert_equal "PRCycle", reports[0].reports[:complete_local_name]
     assert_equal true, reports[0].name_include?("PRCycle")
     assert_equal "88:A2:9E:0B:A7:DE", reports[0].address.bytes.map { |b| "%02X" % b }.join(":")
+    assert_equal "88:A2:9E:0B:A7:DE", reports[0].address_string
+    assert_equal true, reports[0].address_include?("88:A2:9E:0B:A7:DE")
     assert_equal(-59, reports[0].rssi)
+    assert_equal 30, reports[0].data_length
     assert_equal 16, reports[0].reports[:complete_list_128_bit_service_class_uuids].bytesize
   end
 

@@ -8,6 +8,7 @@ require "ble_cycle_host/speed_estimator"
 
 DEBUG_BLE = true
 DEVICE_NAME = "PRCycle"
+DEVICE_ADDRESS = "88:A2:9E:0B:A7:DE"
 WHEEL_CIRCUMFERENCE_MM = 2105
 SCAN_STATUS_PERIOD_MS = 5000
 
@@ -28,8 +29,10 @@ puts "wheel_circumference_mm"
 puts WHEEL_CIRCUMFERENCE_MM
 puts "target_name"
 puts DEVICE_NAME
+puts "target_address"
+puts DEVICE_ADDRESS
 
-central = BLECycleHost::UARTCentral.new(DEVICE_NAME)
+central = BLECycleHost::UARTCentral.new(DEVICE_NAME, DEVICE_ADDRESS)
 central.debug = DEBUG_BLE
 central.scan_debug = DEBUG_BLE
 estimator = BLECycleHost::SpeedEstimator.new(WHEEL_CIRCUMFERENCE_MM)

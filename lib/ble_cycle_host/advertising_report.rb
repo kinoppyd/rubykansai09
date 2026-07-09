@@ -26,13 +26,15 @@ module BLECycleHost
     attr_reader :address
     attr_reader :rssi
     attr_reader :reports
+    attr_reader :data_length
 
-    def initialize(event_type, address_type_code, address, rssi, reports)
+    def initialize(event_type, address_type_code, address, rssi, reports, data_length = 0)
       @event_type = event_type
       @address_type_code = address_type_code
       @address = address
       @rssi = rssi
       @reports = reports
+      @data_length = data_length
     end
 
     def self.each(packet)
@@ -57,7 +59,7 @@ module BLECycleHost
         data = packet.byteslice(offset + 9, data_length) || ""
         rssi_byte = packet.getbyte(offset + 9 + data_length)
         rssi = signed_i8(rssi_byte || 0)
-        yield new(event_type_code, address_type_code, address, rssi, parse_ad_data(data))
+        yield new(event_type_code, address_type_code, address, rssi, parse_ad_data(data), data.bytesize)
         offset += 10 + data_length
         i += 1
       end
@@ -88,6 +90,19 @@ module BLECycleHost
     def name_include?(name)
       @reports[:shortened_local_name]&.include?(name) ||
         @reports[:complete_local_name]&.include?(name)
+    end
+
+    def address_string
+      @address.bytes.map { |b| sprintf("%02X", b) }.join(":")
+    end
+
+    def address_include?(address)
+      return false if address.nil?
+      normalize_address(address) == normalize_address(address_string)
+    end
+
+    def normalize_address(address)
+      address.to_s.upcase
     end
 
     def self.reverse_address(packet, offset)

@@ -60,6 +60,9 @@ R2P2 の `/home/app.rb`:
 r2p2_apps/ble_cycle_host/home/app.rb
 ```
 
+ホスト側 app の `DEVICE_ADDRESS` は、センサ側ログの
+`UART Peripheral up on: ...` に出た address に合わせる。
+
 ## 起動順
 
 1. センサ側 Pico 2 W を起動する。
@@ -172,6 +175,8 @@ raw central scan だけを確認する。
 r2p2_apps/ble_cycle_scan/home/app.rb
 ```
 
+診断 app の `TARGET_ADDRESS` も、センサ側ログの address に合わせる。
+
 センサ側を起動して `Advertising started` が出ている状態で、この診断 app を起動する。
 
 期待ログ:
@@ -190,6 +195,8 @@ addr
 88:A2:9E:xx:xx:xx
 name
 PRCycle
+address_match
+1
 name_match
 1
 ```
@@ -197,6 +204,8 @@ name_match
 `scan_status` の `reports` が増えない場合、ホスト側 firmware / controller / RF の
 scan 動作が成立していない。`adv_report` は出るが `name_match` が 0 の場合、
 センサ側の advertised name とホスト側の `TARGET_NAME` が一致していない。
+今回のようにセンサ address は見えるが `name` と `service128_len` が空の場合は、
+`address_match 1` であれば通常のホスト app が address fallback で接続を試みる。
 
 `le_meta` / `2` が出続ける場合は、raw HCI の LE Advertising Report が届いている。
 最新の `lib/ble_cycle_host/advertising_report.rb` と

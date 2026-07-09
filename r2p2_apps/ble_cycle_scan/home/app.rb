@@ -6,6 +6,7 @@ require "ble"
 require "ble_cycle_host/advertising_report"
 
 TARGET_NAME = "PRCycle"
+TARGET_ADDRESS = "88:A2:9E:0B:A7:DE"
 SCAN_INTERVAL = 0x60
 SCAN_WINDOW = 0x30
 STATUS_EVERY_HEARTBEATS = 5
@@ -71,7 +72,8 @@ class CycleScanDebug < BLE
       service128 = report.reports[:complete_list_128_bit_service_class_uuids] ||
                    report.reports[:incomplete_list_128_bit_service_class_uuids]
       name_match = report.name_include?(TARGET_NAME)
-      @target_count += 1 if name_match
+      address_match = report.address_include?(TARGET_ADDRESS)
+      @target_count += 1 if name_match || address_match
 
       puts "adv_report"
       puts "count"
@@ -82,6 +84,12 @@ class CycleScanDebug < BLE
       puts report.rssi
       puts "name"
       puts name
+      puts "event_type"
+      puts report.event_type
+      puts "data_len"
+      puts report.data_length
+      puts "address_match"
+      puts(address_match ? 1 : 0)
       puts "name_match"
       puts(name_match ? 1 : 0)
       puts "service128_len"
@@ -107,6 +115,8 @@ end
 puts "BLE cycle scan debug"
 puts "target_name"
 puts TARGET_NAME
+puts "target_address"
+puts TARGET_ADDRESS
 
 scanner = CycleScanDebug.new
 scanner.run

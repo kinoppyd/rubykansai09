@@ -13,6 +13,10 @@ class BLE
       @cycle_target_name = name
     end
 
+    def cycle_target_address=(address)
+      @cycle_target_address = address
+    end
+
     def cycle_scan_debug=(value)
       @cycle_scan_debug = value
       @cycle_scan_report_count = 0
@@ -83,10 +87,17 @@ class BLE
                        adv_report.reports[:incomplete_list_128_bit_service_class_uuids]
         service_match = service_data && service_data.include?(@service_uuid_bin)
         name_match = @cycle_target_name && adv_report.name_include?(@cycle_target_name)
-        if service_match || name_match
+        address_match = @cycle_target_address && adv_report.address_include?(@cycle_target_address)
+        if service_match || name_match || address_match
           debug_puts "Found cycle UART device"
           debug_puts "addr"
           debug_puts Utils.bd_addr_to_str(adv_report.address)
+          debug_puts "event_type"
+          debug_puts adv_report.event_type
+          debug_puts "data_len"
+          debug_puts adv_report.data_length
+          debug_puts "address_match"
+          debug_puts(address_match ? 1 : 0)
           debug_puts "name_match"
           debug_puts(name_match ? 1 : 0)
           debug_puts "service_match"
