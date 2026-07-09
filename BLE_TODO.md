@@ -203,7 +203,7 @@ cadence_rpm = abs(wheel_rotations) * 60_000.0 / interval_ms
 - [x] `lib/ble_cycle_sensor/uart_peripheral.rb` を追加する。
 - [x] `BLE::UART.new(role: :peripheral, name: "PRCycle", service_uuid: ..., rx_uuid: ..., tx_uuid: ...)` を使う。
 - [x] advertisement が 31 bytes に収まることをテストまたは起動時チェックで確認する。
-- [ ] センサ app の loop から `uart.start` の block または同等の poll loop を使い、MPU sampling を止めない構成にする。
+- [x] センサ app の loop から `uart.start` の block または同等の poll loop を使い、MPU sampling を止めない構成にする。
 - [x] 事前確保した 20 byte payload を `uart.write(payload)` で送る。
 - [x] `uart.connected?` と debug log で connect / disconnect / subscribe 相当の状態を追う。
 - [x] serial log は connect / write / disconnect / dropped event count に限定する。
@@ -325,7 +325,7 @@ cadence_rpm = abs(wheel_rotations) * 60_000.0 / interval_ms
   - [ ] subscribe 後 500 ms 付近で notification
 - [ ] 2台実機で以下を確認する。
   - [x] sensor subscribe 直後に first packet が出る。
-  - [ ] wheel を回すと `delta_angle_mrad` と `speed_kmh` が増える。
+  - [x] wheel を回すと `delta_angle_mrad` と `speed_kmh` が増える。
   - [ ] 停止後、速度が 0 へ落ちる。
   - [ ] 30秒以上、event queue drop / overrun / NoMemoryError が出ない。
   - [ ] disconnect 後に sensor が re-advertise し、host が再接続できる。
@@ -343,7 +343,7 @@ cadence_rpm = abs(wheel_rotations) * 60_000.0 / interval_ms
 
 - [x] CSCS/CSCP UUID を使わず、custom BLE service の UART-style TX notification で 20 byte frame を送受信できる。
 - [x] 初期実装では `BLE::UART` と独自 UUID を使い、20 byte 固定 frame を送受信できる。
-- [ ] センサ側は MPU の回転検出から累積回転数と前回通信後の回転角を 500 ms 目標で送る。
+- [x] センサ側は MPU の回転検出から累積回転数と前回通信後の回転角を 500 ms 目標で送る。
 - [ ] ホスト側は受信 payload から速度を計算し、2台構成では直接、3台構成では SPI/I2C 経由で GC9A01 speedometer に渡す。
 - [x] センサ側/ホスト側の両方に serial debug output がある。
 - [ ] 3台構成を選ぶ場合、ディスプレイ側にも serial debug output がある。
