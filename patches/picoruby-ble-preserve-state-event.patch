@@ -1,29 +1,64 @@
 diff --git a/mrbgems/picoruby-ble/src/mruby/ble.c b/mrbgems/picoruby-ble/src/mruby/ble.c
-index ce314f54..0d40addd 100644
+index ce314f54..85b0146f 100644
 --- a/mrbgems/picoruby-ble/src/mruby/ble.c
 +++ b/mrbgems/picoruby-ble/src/mruby/ble.c
-@@ -8,11 +8,24 @@ static mrb_state *_mrb = NULL;
+@@ -8,14 +8,59 @@ static mrb_state *_mrb = NULL;
  static mrb_value write_values;
  static mrb_value read_values;
  
 +#define BLE_EVENT_BTSTACK_STATE 0x60
++#define BLE_EVENT_LE_META 0x3e
++#define BLE_EVENT_META_GAP 0xe7
++#define BLE_SUBEVENT_LE_CONNECTION_COMPLETE 0x01
++#define BLE_SUBEVENT_LE_ENHANCED_CONNECTION_COMPLETE_V1 0x0a
++#define BLE_SUBEVENT_LE_ENHANCED_CONNECTION_COMPLETE_V2 0x29
++#define BLE_GAP_SUBEVENT_LE_CONNECTION_COMPLETE 0x08
++
++static bool
++BLE_event_is_btstack_state(const uint8_t *data, uint16_t size)
++{
++  return 0 < size && data[0] == BLE_EVENT_BTSTACK_STATE;
++}
++
++static bool
++BLE_event_is_connection_complete(const uint8_t *data, uint16_t size)
++{
++  if (size <= 2) return false;
++  switch (data[0]) {
++    case BLE_EVENT_LE_META:
++      switch (data[2]) {
++        case BLE_SUBEVENT_LE_CONNECTION_COMPLETE:
++        case BLE_SUBEVENT_LE_ENHANCED_CONNECTION_COMPLETE_V1:
++        case BLE_SUBEVENT_LE_ENHANCED_CONNECTION_COMPLETE_V2:
++          return true;
++        default:
++          return false;
++      }
++    case BLE_EVENT_META_GAP:
++      return data[2] == BLE_GAP_SUBEVENT_LE_CONNECTION_COMPLETE;
++    default:
++      return false;
++  }
++}
 +
  void
  BLE_push_event(uint8_t *data, uint16_t size)
  {
    if (packet_mutex) return;
    packet_mutex = true;
-+  if (
-+    packet_flag &&
-+    packet != NULL &&
-+    0 < packet_size &&
-+    0 < size &&
-+    packet[0] == BLE_EVENT_BTSTACK_STATE &&
-+    data[0] != BLE_EVENT_BTSTACK_STATE
-+  ) {
-+    packet_mutex = false;
-+    return;
++  if (packet_flag && packet != NULL) {
++    bool pending_state = BLE_event_is_btstack_state(packet, packet_size);
++    bool pending_connect = BLE_event_is_connection_complete(packet, packet_size);
++    bool next_state = BLE_event_is_btstack_state(data, size);
++    bool next_connect = BLE_event_is_connection_complete(data, size);
++    if ((pending_state && !next_state) || (pending_connect && !next_connect)) {
++      packet_mutex = false;
++      return;
++    }
 +  }
    packet_flag = true;
    packet_size = size;
    if (packet != NULL) {
+     mrb_free(_mrb, packet);
+   }
+   packet = mrb_malloc(_mrb, packet_size);

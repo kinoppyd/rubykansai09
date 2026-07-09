@@ -30,9 +30,9 @@ GC9A01 の確認は後続手順で行うため、この BLE 疎通確認では
 true passive scan にする。
 接続完了を示す BTstack の GAP meta event を Ruby 側で受け取るため、
 `patches/picoruby-ble-central-gap-meta.patch` も同じ UF2 に適用する。
-PicoRuby の BLE event は単一スロットなので、HCI 起動完了 event を
-診断 event で上書きしないように `patches/picoruby-ble-preserve-state-event.patch`
-も適用する。
+PicoRuby の BLE event は単一スロットなので、HCI 起動完了 event と
+BLE 接続完了 event を診断 event で上書きしないように
+`patches/picoruby-ble-preserve-state-event.patch` も適用する。
 
 ## センサ側へ配置するファイル
 
@@ -168,6 +168,7 @@ speed_kmh
 ## 接続できない場合の切り分け
 
 - ホスト側に `UART Central up` / `Scan started` が出ず、`scan_state TC_OFF` が続く場合は、central の HCI 起動 event が Ruby 側へ届いていない。UF2 に `patches/picoruby-ble-preserve-state-event.patch` が適用されているか確認する。
+- `gap_connect 0` の後に `connect_event type 5` / `b5 8` が出て再 scan する場合は、BLE connection complete event を Ruby 側が処理する前に失っている可能性がある。同じ patch が connection complete event 保護版になっているか確認する。
 - `scan_reports` が増えない場合は、ホストが advertising report を受け取れていない。
 - `scan_reports` は増えるが `Found cycle UART device` が出ない場合は、センサ側の device name が `PRCycle` で起動しているか、ホスト側の `DEVICE_NAME` と一致しているかを確認する。
 - `Found cycle UART device` が出て `gap_connect` が `0` ではない場合は、address type や接続パラメータ側の問題を疑う。
