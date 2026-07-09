@@ -3,6 +3,20 @@
 require "ble"
 require "ble_cycle_packet"
 
+class BLE
+  class UART < BLE
+    private
+
+    def _check_cccd
+      while (data = pop_write_value(@cccd_handle))
+        @notification_enabled = (data == "\x01\x00")
+        @connected = @notification_enabled
+        debug_puts "Notifications #{@notification_enabled ? 'enabled' : 'disabled'}"
+      end
+    end
+  end
+end
+
 module BLECycleSensor
   class UARTPeripheral
     def initialize(name = "PRCycle")

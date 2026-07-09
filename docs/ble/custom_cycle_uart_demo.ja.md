@@ -170,6 +170,7 @@ speed_kmh
 - ホスト側に `UART Central up` / `Scan started` が出ず、`scan_state TC_OFF` が続く場合は、central の HCI 起動 event が Ruby 側へ届いていない。UF2 に `patches/picoruby-ble-preserve-state-event.patch` が適用されているか確認する。
 - `gap_connect 0` の後に `connect_event type 5` / `b5 8` が出て再 scan する場合は、BLE connection complete event を Ruby 側が処理する前に失っている可能性がある。同じ patch が event queue 版になっているか確認する。
 - `Connected. Handle` の後に `NUS service not found` が出る場合は、GATT service discovery result が Ruby 側に届いていない、または GATT event offset が合っていない。UF2 が event queue 版 patch でビルドされているか、ホスト側 `/lib/ble_cycle_host/uart_central_patch.rb` が GATT offset 補正版か確認する。
+- ホスト側に `NUS central ready` / `ble_connected 1` が出るが `RX` が出ない場合は、センサ側に `Notifications enabled` と `ble_connected 1` が出ているか確認する。センサ側 `/lib/ble_cycle_sensor/uart_peripheral.rb` は CCCD 有効化を送信可能状態として扱う最新版を使う。
 - `scan_reports` が増えない場合は、ホストが advertising report を受け取れていない。
 - `scan_reports` は増えるが `Found cycle UART device` が出ない場合は、センサ側の device name が `PRCycle` で起動しているか、ホスト側の `DEVICE_NAME` と一致しているかを確認する。
 - `Found cycle UART device` が出て `gap_connect` が `0` ではない場合は、address type や接続パラメータ側の問題を疑う。
