@@ -159,6 +159,43 @@ speed_kmh
 - `Found cycle UART device` が出て `gap_connect` が `0` ではない場合は、address type や接続パラメータ側の問題を疑う。
 - `Connected. Handle` は出るが `NUS central ready` が出ない場合は、GATT service / characteristic discovery または CCCD write の失敗を疑う。
 
+## scan report が 0 の場合
+
+ホスト側で `scan_reports` が 0 のままの場合、`BLE::UART` の接続処理へ進む前に
+raw central scan だけを確認する。
+
+ホスト側 Pico 2 W の `/home/app.rb` として、次を一時的に配置する。
+
+```text
+r2p2_apps/ble_cycle_scan/home/app.rb
+```
+
+センサ側を起動して `Advertising started` が出ている状態で、この診断 app を起動する。
+
+期待ログ:
+
+```text
+BLE cycle scan debug
+target_name
+PRCycle
+scan_debug_up
+88:A2:9E:xx:xx:xx
+scan_started
+adv_report
+count
+1
+addr
+88:A2:9E:xx:xx:xx
+name
+PRCycle
+name_match
+1
+```
+
+`scan_status` の `reports` が増えない場合、ホスト側 firmware / controller / RF の
+scan 動作が成立していない。`adv_report` は出るが `name_match` が 0 の場合、
+センサ側の advertised name とホスト側の `TARGET_NAME` が一致していない。
+
 ## MPU-6050 を使う場合
 
 BLE 経路確認後、センサ側 app 冒頭の定数を変更する。
