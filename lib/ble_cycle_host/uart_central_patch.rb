@@ -149,6 +149,12 @@ class BLE
           end
         when GATT_EVENT_QUERY_COMPLETE
           if @peer_rx_handle && @peer_tx_handle && (cccd = @peer_cccd_handle)
+            if respond_to?(:listen_for_characteristic_value_updates)
+              debug_puts "listen_notifications"
+              debug_puts listen_for_characteristic_value_updates(@conn_handle, @peer_tx_handle)
+            else
+              debug_puts "listen_notifications_missing"
+            end
             write_characteristic_descriptor_using_descriptor_handle(
               @conn_handle, cccd, "\x01\x00"
             )

@@ -1,0 +1,131 @@
+diff --git a/mrbgems/picoruby-ble/include/ble.h b/mrbgems/picoruby-ble/include/ble.h
+index 5ff232c3..aae6240d 100644
+--- a/mrbgems/picoruby-ble/include/ble.h
++++ b/mrbgems/picoruby-ble/include/ble.h
+@@ -47,10 +47,10 @@ uint8_t BLE_read_value_of_characteristic_using_value_handle(uint16_t conn_handle
+ uint8_t BLE_discover_characteristic_descriptors(uint16_t conn_handle, uint16_t value_handle, uint16_t end_handle);
+ uint8_t BLE_write_value_of_characteristic_without_response(uint16_t conn_handle, uint16_t value_handle, const uint8_t *data, uint16_t size);
+ uint8_t BLE_write_characteristic_descriptor_using_descriptor_handle(uint16_t conn_handle, uint16_t descriptor_handle, const uint8_t *data, uint16_t size);
++uint8_t BLE_listen_for_characteristic_value_updates(uint16_t conn_handle, uint16_t value_handle);
+ 
+ #ifdef __cplusplus
+ }
+ #endif
+ 
+ #endif /* BLE_DEFINED_H_ */
+-
+diff --git a/mrbgems/picoruby-ble/ports/rp2040/ble.c b/mrbgems/picoruby-ble/ports/rp2040/ble.c
+index 13de0ac9..789c113e 100644
+--- a/mrbgems/picoruby-ble/ports/rp2040/ble.c
++++ b/mrbgems/picoruby-ble/ports/rp2040/ble.c
+@@ -14,6 +14,8 @@ static enum BLE_role_t role = BLE_ROLE_NONE;
+ static btstack_packet_callback_registration_t ble_hci_event_callback_registration;
+ static btstack_packet_callback_registration_t sm_event_callback_registration;
+ static btstack_timer_source_t heartbeat;
++static gatt_client_notification_t notification_listener;
++static gatt_client_characteristic_t notification_characteristic;
+ 
+ static uint16_t
+ att_read_callback(hci_con_handle_t connection_handle, uint16_t att_handle, uint16_t offset, uint8_t *buffer, uint16_t buffer_size)
+@@ -248,3 +250,24 @@ BLE_write_characteristic_descriptor_using_descriptor_handle(uint16_t conn_handle
+   return gatt_client_write_characteristic_descriptor_using_descriptor_handle(&packet_handler, conn_handle, descriptor_handle, size, (uint8_t *)data);
+ }
+ 
++uint8_t
++BLE_listen_for_characteristic_value_updates(uint16_t conn_handle, uint16_t value_handle)
++{
++  notification_characteristic = (gatt_client_characteristic_t) {
++    .start_handle = value_handle,
++    .value_handle = value_handle,
++    .end_handle = value_handle,
++    .properties = 0,
++    .uuid16 = 0,
++    .uuid128 = { 0 }
++  };
++
++  gatt_client_stop_listening_for_characteristic_value_updates(&notification_listener);
++  gatt_client_listen_for_characteristic_value_updates(
++    &notification_listener,
++    &packet_handler,
++    conn_handle,
++    &notification_characteristic
++  );
++  return 0;
++}
+diff --git a/mrbgems/picoruby-ble/sig/ble.rbs b/mrbgems/picoruby-ble/sig/ble.rbs
+index 35936eab..b0b88148 100644
+--- a/mrbgems/picoruby-ble/sig/ble.rbs
++++ b/mrbgems/picoruby-ble/sig/ble.rbs
+@@ -239,6 +239,7 @@ class BLE
+     def discover_characteristics_for_service: (Integer conn_handle, Integer start_handle, Integer end_handle) -> Integer
+     def write_value_of_characteristic_without_response: (Integer conn_handle, Integer value_handle, String data) -> Integer
+     def write_characteristic_descriptor_using_descriptor_handle: (Integer conn_handle, Integer descriptor_handle, String data) -> Integer
++    def listen_for_characteristic_value_updates: (Integer conn_handle, Integer value_handle) -> Integer
+   # end
+ 
+   class AdvertisingData
+diff --git a/mrbgems/picoruby-ble/src/mruby/ble_central.c b/mrbgems/picoruby-ble/src/mruby/ble_central.c
+index 8fbdd848..97f55c69 100644
+--- a/mrbgems/picoruby-ble/src/mruby/ble_central.c
++++ b/mrbgems/picoruby-ble/src/mruby/ble_central.c
+@@ -82,6 +82,18 @@ mrb_write_characteristic_descriptor_using_descriptor_handle(mrb_state *mrb, mrb_
+   return mrb_fixnum_value(res);
+ }
+ 
++static mrb_value
++mrb_listen_for_characteristic_value_updates(mrb_state *mrb, mrb_value self)
++{
++  mrb_int conn_handle, value_handle;
++  mrb_get_args(mrb, "ii", &conn_handle, &value_handle);
++  uint8_t res = BLE_listen_for_characteristic_value_updates(
++    (uint16_t)conn_handle,
++    (uint16_t)value_handle
++  );
++  return mrb_fixnum_value(res);
++}
++
+ /*
+  * @param [Symbol] scan_type. :passive or :active
+  * @param [Integer] scan_interval. 4..4000 (unit: 0.625ms)
+@@ -148,5 +160,5 @@ mrb_init_class_BLE_Central(mrb_state *mrb, struct RClass *class_BLE)
+   mrb_define_method_id(mrb, class_BLE, MRB_SYM(discover_characteristic_descriptors), mrb_discover_characteristic_descriptors, MRB_ARGS_REQ(3));
+   mrb_define_method_id(mrb, class_BLE, MRB_SYM(write_value_of_characteristic_without_response), mrb_write_value_of_characteristic_without_response, MRB_ARGS_REQ(3));
+   mrb_define_method_id(mrb, class_BLE, MRB_SYM(write_characteristic_descriptor_using_descriptor_handle), mrb_write_characteristic_descriptor_using_descriptor_handle, MRB_ARGS_REQ(3));
++  mrb_define_method(mrb, class_BLE, "listen_for_characteristic_value_updates", mrb_listen_for_characteristic_value_updates, MRB_ARGS_REQ(2));
+ }
+-
+diff --git a/mrbgems/picoruby-ble/src/mrubyc/ble_central.c b/mrbgems/picoruby-ble/src/mrubyc/ble_central.c
+index 52a43a67..c625f3dd 100644
+--- a/mrbgems/picoruby-ble/src/mrubyc/ble_central.c
++++ b/mrbgems/picoruby-ble/src/mrubyc/ble_central.c
+@@ -111,6 +111,24 @@ c_write_characteristic_descriptor_using_descriptor_handle(mrbc_vm *vm, mrbc_valu
+   SET_INT_RETURN(res);
+ }
+ 
++static void
++c_listen_for_characteristic_value_updates(mrbc_vm *vm, mrbc_value *v, int argc)
++{
++  if (argc != 2) {
++    mrbc_raise(vm, MRBC_CLASS(ArgumentError), "wrong number of arguments");
++    return;
++  }
++  if (GET_TT_ARG(1) != MRBC_TT_INTEGER || GET_TT_ARG(2) != MRBC_TT_INTEGER) {
++    mrbc_raise(vm, MRBC_CLASS(TypeError), "wrong type of arguments");
++    return;
++  }
++  uint8_t res = BLE_listen_for_characteristic_value_updates(
++    (uint16_t)GET_INT_ARG(1),
++    (uint16_t)GET_INT_ARG(2)
++  );
++  SET_INT_RETURN(res);
++}
++
+ /*
+  * @param [Symbol] scan_type. :passive or :active
+  * @param [Integer] scan_interval. 4..4000 (unit: 0.625ms)
+@@ -189,4 +207,5 @@ mrbc_init_class_BLE_Central(mrbc_vm *vm, mrbc_class *class_BLE)
+   mrbc_define_method(vm, class_BLE, "discover_characteristic_descriptors", c_discover_characteristic_descriptors);
+   mrbc_define_method(vm, class_BLE, "write_value_of_characteristic_without_response", c_write_value_of_characteristic_without_response);
+   mrbc_define_method(vm, class_BLE, "write_characteristic_descriptor_using_descriptor_handle", c_write_characteristic_descriptor_using_descriptor_handle);
++  mrbc_define_method(vm, class_BLE, "listen_for_characteristic_value_updates", c_listen_for_characteristic_value_updates);
+ }
