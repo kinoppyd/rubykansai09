@@ -49,6 +49,7 @@ R2P2 の `/lib`:
 ```text
 lib/ble_cycle_packet.rb
 lib/ble_cycle_host/uart_central.rb
+lib/ble_cycle_host/uart_central_patch.rb
 lib/ble_cycle_host/speed_estimator.rb
 ```
 
@@ -70,7 +71,7 @@ fake
 ```
 
 3. ホスト側 Pico 2 W を起動する。
-4. ホスト側が custom service UUID を advertise しているセンサへ自動接続する。
+4. ホスト側が custom service UUID または device name `PRCycle` を advertise しているセンサへ自動接続する。
 5. センサ側に `ble_connected` と `TX` が出ることを確認する。
 6. ホスト側に `RX` と `speed_kmh` が出ることを確認する。
 
@@ -79,6 +80,8 @@ fake
 センサ側:
 
 ```text
+UART Peripheral up on: `88:A2:9E:xx:xx:xx`
+Advertising started
 ble_connected
 1
 TX
@@ -100,6 +103,28 @@ interval_ms
 ホスト側:
 
 ```text
+BLE cycle host
+wheel_circumference_mm
+2105
+target_name
+PRCycle
+UART Central up on: `88:A2:9E:xx:xx:xx`
+Scan started
+scan_state
+TC_W4_SCAN_RESULT
+scan_reports
+0
+Found cycle UART device
+name_match
+1
+service_match
+0
+gap_connect
+0
+Connected. Handle: 0x0040
+NUS central ready
+ble_connected
+1
 RX
 count
 1
@@ -121,6 +146,18 @@ speed_kmh
 `interval_ms` は実際の event loop により 500 ms から多少ずれてよい。
 `reader_gap_count` が増え続ける場合は、BLE frame の抜けまたは decode ずれを
 疑う。
+
+`service_match 0` かつ `name_match 1` でも接続できていれば、この段階では問題ない。
+これは advertising report に custom service UUID が含まれない、または central 側で
+拾えない場合の bring-up 用 fallback である。
+
+## 接続できない場合の切り分け
+
+- ホスト側に `Scan started` が出ない場合は、central の HCI 起動または `/lib` 配置を確認する。
+- `scan_reports` が増えない場合は、ホストが advertising report を受け取れていない。
+- `scan_reports` は増えるが `Found cycle UART device` が出ない場合は、センサ側の device name が `PRCycle` で起動しているか、ホスト側の `DEVICE_NAME` と一致しているかを確認する。
+- `Found cycle UART device` が出て `gap_connect` が `0` ではない場合は、address type や接続パラメータ側の問題を疑う。
+- `Connected. Handle` は出るが `NUS central ready` が出ない場合は、GATT service / characteristic discovery または CCCD write の失敗を疑う。
 
 ## MPU-6050 を使う場合
 
