@@ -1,6 +1,6 @@
 # PicoRuby Custom BLE Cycle Computer TODO
 
-最終更新: 2026-07-09 JST
+最終更新: 2026-07-10 JST
 
 ## 目的
 
@@ -171,69 +171,69 @@ cadence_rpm = abs(wheel_rotations) * 60_000.0 / interval_ms
 
 ### 0. 作業前確認
 
-- [ ] `git status --short` を確認し、既存の未追跡 `task_cscp.md` を触らない。
-- [ ] `BLE_TODO.md` の内容をユーザーが確認するまで commit/push しない。
-- [ ] 実装時の対象 firmware は Pico 2 W / R2P2 / PicoRuby とし、`.mrb` 生成は行わない。
+- [x] `git status --short` を確認し、既存の未追跡 `task_cscp.md` を触らない。
+- [x] `BLE_TODO.md` の内容をユーザーが確認するまで commit/push しない。
+- [x] 実装時の対象 firmware は Pico 2 W / R2P2 / PicoRuby とし、`.mrb` 生成は行わない。
 
 ### 0.5. Firmware build 方針
 
-- [ ] GC9A01 なし firmware を BLE センサ用/ホスト用の基本 build にする。
+- [x] GC9A01 なし firmware を BLE センサ用/ホスト用の基本 build にする。
 - [ ] GC9A01 あり firmware をディスプレイ用、または2台構成のホスト/表示兼用 build にする。
 - [ ] `tmp/picoruby` はクリーンな基準 checkout として保つ。
 - [ ] GC9A01 あり build は、別の作業 tree か clone で `patches/picoruby-gc9a01-speedometer.patch` を適用して行う。
-- [ ] GC9A01 なし build では同 patch を適用しない。
+- [x] GC9A01 なし build では同 patch を適用しない。
 - [ ] build 手順書に、どの board にどの UF2 を書くかを明記する。
 - [ ] build 後に PicoRuby checkout の `git status --short` を確認し、意図しない patch 適用状態を残さない。
 
 ### 1. 共通 packet codec
 
-- [ ] `lib/ble_cycle_packet.rb` を追加する。
-- [ ] UUID、payload size、flag/status 定数を定義する。
-- [ ] `bytes(n)`, `put_u8`, `put_u16`, `put_u32`, `put_s32`, `get_u16`, `get_u32`, `get_s32` を実装する。
-- [ ] `encode_into(payload, ...)` を実装し、呼び出し側が渡した 20 byte String を破壊的に更新する。
-- [ ] `decode(payload, out)` を実装する。ホスト実機では Hash を返さず、渡された軽量オブジェクトか instance variables に展開できる形にする。
-- [ ] `BLE::UART` の stream から 20 byte frame を切り出す `FrameReader` を追加する。
-- [ ] `FrameReader` は 20 byte 未満を保持し、40 byte 以上を連続 frame として処理できるようにする。
-- [ ] sequence gap と invalid version を検出できるようにする。
-- [ ] `test/ble_cycle_packet_test.rb` を追加し、byte layout、signed 32-bit、sequence rollover、invalid length を CRuby で確認する。
+- [x] `lib/ble_cycle_packet.rb` を追加する。
+- [x] UUID、payload size、flag/status 定数を定義する。
+- [x] `bytes(n)`, `put_u8`, `put_u16`, `put_u32`, `put_s32`, `get_u16`, `get_u32`, `get_s32` を実装する。
+- [x] `encode_into(payload, ...)` を実装し、呼び出し側が渡した 20 byte String を破壊的に更新する。
+- [x] `decode(payload, out)` を実装する。ホスト実機では Hash を返さず、渡された軽量オブジェクトか instance variables に展開できる形にする。
+- [x] `BLE::UART` の stream から 20 byte frame を切り出す `FrameReader` を追加する。
+- [x] `FrameReader` は 20 byte 未満を保持し、40 byte 以上を連続 frame として処理できるようにする。
+- [x] sequence gap と invalid version を検出できるようにする。
+- [x] `test/ble_cycle_packet_test.rb` を追加し、byte layout、signed 32-bit、sequence rollover、invalid length を CRuby で確認する。
 - [ ] `test/ble_cycle_frame_reader_test.rb` を追加し、分割受信、連結受信、余剰 byte、invalid frame を確認する。
 
 ### 2. センサ側 BLE::UART peripheral
 
-- [ ] `lib/ble_cycle_sensor/uart_peripheral.rb` を追加する。
-- [ ] `BLE::UART.new(role: :peripheral, name: "PRCycle", service_uuid: ..., rx_uuid: ..., tx_uuid: ...)` を使う。
-- [ ] advertisement が 31 bytes に収まることをテストまたは起動時チェックで確認する。
+- [x] `lib/ble_cycle_sensor/uart_peripheral.rb` を追加する。
+- [x] `BLE::UART.new(role: :peripheral, name: "PRCycle", service_uuid: ..., rx_uuid: ..., tx_uuid: ...)` を使う。
+- [x] advertisement が 31 bytes に収まることをテストまたは起動時チェックで確認する。
 - [ ] センサ app の loop から `uart.start` の block または同等の poll loop を使い、MPU sampling を止めない構成にする。
-- [ ] 事前確保した 20 byte payload を `uart.write(payload)` で送る。
-- [ ] `uart.connected?` と debug log で connect / disconnect / subscribe 相当の状態を追う。
-- [ ] serial log は connect / write / disconnect / dropped event count に限定する。
-- [ ] 専用 GATT peripheral は `BLE::UART` で問題が出た場合の fallback として後回しにする。
+- [x] 事前確保した 20 byte payload を `uart.write(payload)` で送る。
+- [x] `uart.connected?` と debug log で connect / disconnect / subscribe 相当の状態を追う。
+- [x] serial log は connect / write / disconnect / dropped event count に限定する。
+- [x] 専用 GATT peripheral は `BLE::UART` で問題が出た場合の fallback として後回しにする。
 
 ### 3. センサ側 R2P2 app
 
-- [ ] tracked な copy-ready 配置として `r2p2_apps/ble_cycle_sensor/home/app.rb` を追加する。
-- [ ] 必要な Ruby lib を `r2p2_apps/ble_cycle_sensor/lib/` に置くか、転送手順で root `lib/` から `/lib` へ入れることを明記する。
-- [ ] 起動時定数を app 冒頭に集約する。
-  - [ ] I2C unit / SDA / SCL。
+- [x] tracked な copy-ready 配置として `r2p2_apps/ble_cycle_sensor/home/app.rb` を追加する。
+- [x] 必要な Ruby lib を `r2p2_apps/ble_cycle_sensor/lib/` に置くか、転送手順で root `lib/` から `/lib` へ入れることを明記する。
+- [x] 起動時定数を app 冒頭に集約する。
+  - [x] I2C unit / SDA / SCL。
   - [ ] MPU sample period。
-  - [ ] rotation axis / direction / min period / deadband。
-  - [ ] notify period `500` ms。
-  - [ ] `DEBUG_LOG`。
-- [ ] `mpu.calibrate_gyro` 後に loop を開始する。
+  - [x] rotation axis / direction / min period / deadband。
+  - [x] notify period `500` ms。
+  - [x] `DEBUG_LOG`。
+- [x] `mpu.calibrate_gyro` 後に loop を開始する。
 - [ ] 5..10 ms 周期で `mpu.sample` と `detector.update` を行う。
-- [ ] 毎サンプル `detector.delta_angle` を `delta_angle_since_notify` に積算する。
-- [ ] `detector.count` から累積フル回転数を更新する。
-- [ ] subscribe 直後は `first packet` として `delta_angle_mrad = 0`, `interval_ms = 0` を送り、速度スパイクを防ぐ。
+- [x] 毎サンプル `detector.delta_angle` を `delta_angle_since_notify` に積算する。
+- [x] `detector.count` から累積フル回転数を更新する。
+- [x] subscribe 直後は `first packet` として `delta_angle_mrad = 0`, `interval_ms = 0` を送り、速度スパイクを防ぐ。
 - [ ] `uart.write(payload)` 成功後だけ delta angle、sample count、interval status を reset する。
-- [ ] I2C error は短期的には status bit に載せ、連続エラー上限を超えたら raise して serial で分かるようにする。
+- [x] I2C error は短期的には status bit に載せ、連続エラー上限を超えたら raise して serial で分かるようにする。
 
 ### 4. ホスト側 BLE::UART central
 
-- [ ] `lib/ble_cycle_host/uart_central.rb` を追加する。
-- [ ] `BLE::UART.new(role: :central, service_uuid: ..., rx_uuid: ..., tx_uuid: ...)` を使う。
-- [ ] 最初は device name、BLE address、または service UUID の hardcode で自動接続する。複数候補選択 UI は後続タスクに分ける。
-- [ ] `uart.available?` / `uart.read_nonblock` で受信し、`FrameReader` に渡す。
-- [ ] 20 byte frame ごとに packet codec で decode し、速度計算へ渡す。
+- [x] `lib/ble_cycle_host/uart_central.rb` を追加する。
+- [x] `BLE::UART.new(role: :central, service_uuid: ..., rx_uuid: ..., tx_uuid: ...)` を使う。
+- [x] 最初は device name、BLE address、または service UUID の hardcode で自動接続する。複数候補選択 UI は後続タスクに分ける。
+- [x] `uart.available?` / `uart.read_nonblock` で受信し、`FrameReader` に渡す。
+- [x] 20 byte frame ごとに packet codec で decode し、速度計算へ渡す。
 - [ ] 不正 length、invalid version、重複 sequence、sequence gap、disconnect を serial log に出す。
 - [ ] 専用 central state machine は `BLE::UART` で問題が出た場合の fallback として後回しにする。
 
@@ -251,9 +251,9 @@ cadence_rpm = abs(wheel_rotations) * 60_000.0 / interval_ms
 
 ### 5. ホスト側速度計算
 
-- [ ] `lib/ble_cycle_host/speed_estimator.rb` を追加する。
-- [ ] wheel circumference はホスト側定数 `WHEEL_CIRCUMFERENCE_MM` として持つ。
-- [ ] `delta_angle_mrad` と `interval_ms` から `speed_kmh` を計算する。
+- [x] `lib/ble_cycle_host/speed_estimator.rb` を追加する。
+- [x] wheel circumference はホスト側定数 `WHEEL_CIRCUMFERENCE_MM` として持つ。
+- [x] `delta_angle_mrad` と `interval_ms` から `speed_kmh` を計算する。
 - [ ] 停止判定を入れる。
   - [ ] 一定時間 notification が来ない場合は速度を 0 に落とす。
   - [ ] notification は来ているが `delta_angle_mrad == 0` が続く場合も 0 にする。
@@ -262,8 +262,8 @@ cadence_rpm = abs(wheel_rotations) * 60_000.0 / interval_ms
 
 ### 6. ホスト側 R2P2 app と表示出力
 
-- [ ] tracked な copy-ready 配置として `r2p2_apps/ble_cycle_host/home/app.rb` を追加する。
-- [ ] ホスト app は BLE 受信と速度計算を担当し、GC9A01 へ直接依存しない形を第一候補にする。
+- [x] tracked な copy-ready 配置として `r2p2_apps/ble_cycle_host/home/app.rb` を追加する。
+- [x] ホスト app は BLE 受信と速度計算を担当し、GC9A01 へ直接依存しない形を第一候補にする。
 - [ ] 2台構成を選ぶ場合だけ、同じ app から `GC9A01SimpleSpeedometer` へ直接 `render(speed_kmh)` する adapter を使う。
 - [ ] 3台構成を選ぶ場合、ホスト側は表示 Pico へ速度値を SPI または I2C で送る。
 - [ ] host-to-display の最小 payload を決める。
@@ -273,7 +273,7 @@ cadence_rpm = abs(wheel_rotations) * 60_000.0 / interval_ms
   - [ ] status `u8`
 - [ ] I2C 方式では、表示 Pico を I2C peripheral/slave にできるか PicoRuby/R2P2 API を確認する。難しい場合は SPI または UART へ切り替える。
 - [ ] BLE 受信のたびに `speed_kmh` を更新し、表示側への送信は 5..15 Hz 程度に制限する。
-- [ ] serial log に connection state、sequence、interval、delta angle、speed_kmh、RSSI が取れる場合は RSSI を出す。
+- [x] serial log に connection state、sequence、interval、delta angle、speed_kmh、RSSI が取れる場合は RSSI を出す。
 - [ ] 受信なし timeout、service 不一致、subscribe 失敗を速度計表示または serial で分かるようにする。
 
 ### 6.5. ディスプレイ側 R2P2 app
@@ -305,16 +305,16 @@ cadence_rpm = abs(wheel_rotations) * 60_000.0 / interval_ms
 
 ### 8. 検証
 
-- [ ] `ruby -Ilib test/ble_cycle_packet_test.rb`
+- [x] `ruby -Ilib test/ble_cycle_packet_test.rb`
 - [ ] `ruby -Ilib test/ble_cycle_frame_reader_test.rb`
-- [ ] `ruby -Ilib test/ble_cycle_speed_estimator_test.rb`
+- [x] `ruby -Ilib test/ble_cycle_speed_estimator_test.rb`
 - [ ] 既存テスト `ruby -Ilib test/ble_csc_service_test.rb`
 - [ ] syntax check:
-  - [ ] `ruby -c lib/ble_cycle_packet.rb`
-  - [ ] `ruby -c lib/ble_cycle_sensor/uart_peripheral.rb`
-  - [ ] `ruby -c lib/ble_cycle_host/uart_central.rb`
-  - [ ] `ruby -c r2p2_apps/ble_cycle_sensor/home/app.rb`
-  - [ ] `ruby -c r2p2_apps/ble_cycle_host/home/app.rb`
+  - [x] `ruby -c lib/ble_cycle_packet.rb`
+  - [x] `ruby -c lib/ble_cycle_sensor/uart_peripheral.rb`
+  - [x] `ruby -c lib/ble_cycle_host/uart_central.rb`
+  - [x] `ruby -c r2p2_apps/ble_cycle_sensor/home/app.rb`
+  - [x] `ruby -c r2p2_apps/ble_cycle_host/home/app.rb`
   - [ ] `ruby -c r2p2_apps/ble_cycle_display/home/app.rb`
 - [ ] PicoRuby host build がある場合、`tmp/picoruby/build/host/bin/picoruby` で packet codec の smoke test を行う。
 - [ ] センサ側だけを起動し、スマートフォン BLE scanner で以下を確認する。
@@ -324,7 +324,7 @@ cadence_rpm = abs(wheel_rotations) * 60_000.0 / interval_ms
   - [ ] CCCD
   - [ ] subscribe 後 500 ms 付近で notification
 - [ ] 2台実機で以下を確認する。
-  - [ ] sensor subscribe 直後に first packet が出る。
+  - [x] sensor subscribe 直後に first packet が出る。
   - [ ] wheel を回すと `delta_angle_mrad` と `speed_kmh` が増える。
   - [ ] 停止後、速度が 0 へ落ちる。
   - [ ] 30秒以上、event queue drop / overrun / NoMemoryError が出ない。
@@ -341,20 +341,20 @@ cadence_rpm = abs(wheel_rotations) * 60_000.0 / interval_ms
 
 ## 完了条件
 
-- [ ] CSCS/CSCP UUID を使わず、custom BLE service の UART-style TX notification で 20 byte frame を送受信できる。
-- [ ] 初期実装では `BLE::UART` と独自 UUID を使い、20 byte 固定 frame を送受信できる。
+- [x] CSCS/CSCP UUID を使わず、custom BLE service の UART-style TX notification で 20 byte frame を送受信できる。
+- [x] 初期実装では `BLE::UART` と独自 UUID を使い、20 byte 固定 frame を送受信できる。
 - [ ] センサ側は MPU の回転検出から累積回転数と前回通信後の回転角を 500 ms 目標で送る。
 - [ ] ホスト側は受信 payload から速度を計算し、2台構成では直接、3台構成では SPI/I2C 経由で GC9A01 speedometer に渡す。
-- [ ] センサ側/ホスト側の両方に serial debug output がある。
+- [x] センサ側/ホスト側の両方に serial debug output がある。
 - [ ] 3台構成を選ぶ場合、ディスプレイ側にも serial debug output がある。
 - [ ] Pico 2 W のメモリ制約を意識し、ループ中の不要な allocation を避けている。
-- [ ] R2P2 の `/home` と `/lib` に置ける `.rb` が用意され、`.mrb` は生成していない。
+- [x] R2P2 の `/home` と `/lib` に置ける `.rb` が用意され、`.mrb` は生成していない。
 - [ ] GC9A01 あり/なし firmware の build 手順が分かれ、クリーンな PicoRuby checkout に意図しない patch 状態を残していない。
-- [ ] 実装後、ユーザー確認を受けてから commit/push する。
+- [x] 実装後、ユーザー確認を受けてから commit/push する。
 
 ## 未決事項
 
-- [ ] wheel circumference の初期値。仮値は `2105` mm とし、app 冒頭で変更可能にする。
+- [x] wheel circumference の初期値。仮値は `2105` mm とし、app 冒頭で変更可能にする。
 - [ ] センサの実機取り付け軸。初期値は検証用 `examples/mpu_6050_rotation_verify.rb` で決める。
 - [ ] 速度は絶対値表示を初期値にする。逆回転を見たい場合だけ signed 表示へ切り替える。
 - [ ] 複数センサが見つかった場合の選択 UI は、最初の自動接続が安定してから追加する。
