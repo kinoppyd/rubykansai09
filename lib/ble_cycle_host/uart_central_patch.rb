@@ -9,8 +9,14 @@ require "ble_cycle_host/advertising_report"
 
 class BLE
   class UART < BLE
+    HCI_EVENT_COMMAND_COMPLETE = 0x0E
+    HCI_EVENT_COMMAND_STATUS = 0x0F
     HCI_EVENT_META_GAP = 0xE7
+    HCI_SUBEVENT_LE_ENHANCED_CONNECTION_COMPLETE_V1 = 0x0A
+    HCI_SUBEVENT_LE_ENHANCED_CONNECTION_COMPLETE_V2 = 0x29
     GAP_SUBEVENT_LE_CONNECTION_COMPLETE = 0x08
+    HCI_OPCODE_HCI_LE_SET_SCAN_ENABLE = 0x200C
+    HCI_OPCODE_HCI_LE_CREATE_CONNECTION = 0x200D
 
     def cycle_target_name=(name)
       @cycle_target_name = name
@@ -48,11 +54,18 @@ class BLE
         debug_puts "Scan started"
 
       when HCI_EVENT_DISCONNECTION_COMPLETE
+        _cycle_debug_connect_event(event_packet) if @uart_central_state == :TC_W4_CONNECT
         debug_puts "Disconnected, re-scanning"
         _central_reset
         set_scan_params(:passive, 0x30, 0x30)
         start_scan
         @uart_central_state = :TC_W4_SCAN_RESULT
+
+      when HCI_EVENT_COMMAND_COMPLETE
+        _cycle_handle_command_complete(event_packet) if @uart_central_state == :TC_W4_CONNECT
+
+      when HCI_EVENT_COMMAND_STATUS
+        _cycle_handle_command_status(event_packet) if @uart_central_state == :TC_W4_CONNECT
 
       when GAP_EVENT_ADVERTISING_REPORT
         return unless @uart_central_state == :TC_W4_SCAN_RESULT
@@ -64,11 +77,15 @@ class BLE
           _cycle_handle_advertising_packet(event_packet)
           return
         end
-        return unless event_packet.getbyte(2) == HCI_SUBEVENT_LE_CONNECTION_COMPLETE
+        subevent = event_packet.getbyte(2)
+        return unless subevent == HCI_SUBEVENT_LE_CONNECTION_COMPLETE ||
+                      subevent == HCI_SUBEVENT_LE_ENHANCED_CONNECTION_COMPLETE_V1 ||
+                      subevent == HCI_SUBEVENT_LE_ENHANCED_CONNECTION_COMPLETE_V2
         return unless @uart_central_state == :TC_W4_CONNECT
         _cycle_handle_connection_complete(event_packet)
 
       when HCI_EVENT_META_GAP
+        _cycle_debug_connect_event(event_packet) if @uart_central_state == :TC_W4_CONNECT
         return unless event_packet.getbyte(2) == GAP_SUBEVENT_LE_CONNECTION_COMPLETE
         return unless @uart_central_state == :TC_W4_CONNECT
         _cycle_handle_connection_complete(event_packet)
@@ -85,7 +102,39 @@ class BLE
       end
     end
 
+    def _cycle_handle_command_complete(event_packet)
+      _cycle_debug_connect_event(event_packet)
+      opcode = Utils.little_endian_to_int16(event_packet.byteslice(3, 2))
+      return unless opcode == HCI_OPCODE_HCI_LE_SET_SCAN_ENABLE ||
+                    opcode == HCI_OPCODE_HCI_LE_CREATE_CONNECTION
+      status = event_packet.getbyte(5) || 0
+      if status != 0
+        debug_puts "Command complete failed"
+        debug_puts "opcode"
+        debug_puts opcode
+        debug_puts "status"
+        debug_puts status
+      end
+    end
+
+    def _cycle_handle_command_status(event_packet)
+      _cycle_debug_connect_event(event_packet)
+      opcode = Utils.little_endian_to_int16(event_packet.byteslice(4, 2))
+      return unless opcode == HCI_OPCODE_HCI_LE_CREATE_CONNECTION
+      status = event_packet.getbyte(2) || 0
+      return if status == 0
+
+      debug_puts "Create connection command failed"
+      debug_puts "status"
+      debug_puts status
+      _central_reset
+      set_scan_params(:passive, 0x30, 0x30)
+      start_scan
+      @uart_central_state = :TC_W4_SCAN_RESULT
+    end
+
     def _cycle_handle_connection_complete(event_packet)
+      _cycle_debug_connect_event(event_packet)
       status = event_packet.getbyte(3) || 0
       if status != 0
         debug_puts "Connection failed"
@@ -102,6 +151,27 @@ class BLE
       debug_puts "Connected. Handle: #{sprintf('0x%04X', @conn_handle)}"
       discover_primary_services(@conn_handle)
       @uart_central_state = :TC_W4_SERVICE_RESULT
+    end
+
+    def _cycle_debug_connect_event(event_packet)
+      return unless @cycle_scan_debug
+      @cycle_connect_event_count ||= 0
+      return if @cycle_connect_event_count >= 12
+      @cycle_connect_event_count += 1
+
+      debug_puts "connect_event"
+      debug_puts "type"
+      debug_puts(event_packet.getbyte(0) || -1)
+      debug_puts "subevent"
+      debug_puts(event_packet.getbyte(2) || -1)
+      debug_puts "len"
+      debug_puts event_packet.bytesize
+      debug_puts "b3"
+      debug_puts(event_packet.getbyte(3) || -1)
+      debug_puts "b4"
+      debug_puts(event_packet.getbyte(4) || -1)
+      debug_puts "b5"
+      debug_puts(event_packet.getbyte(5) || -1)
     end
 
     def _cycle_handle_advertising_packet(event_packet)
@@ -128,6 +198,8 @@ class BLE
           debug_puts Utils.bd_addr_to_str(adv_report.address)
           debug_puts "event_type"
           debug_puts adv_report.event_type
+          debug_puts "address_type"
+          debug_puts adv_report.address_type_code
           debug_puts "data_len"
           debug_puts adv_report.data_length
           debug_puts "address_match"
