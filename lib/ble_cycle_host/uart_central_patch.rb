@@ -9,6 +9,9 @@ require "ble_cycle_host/advertising_report"
 
 class BLE
   class UART < BLE
+    HCI_EVENT_META_GAP = 0xE7
+    GAP_SUBEVENT_LE_CONNECTION_COMPLETE = 0x08
+
     def cycle_target_name=(name)
       @cycle_target_name = name
     end
@@ -63,10 +66,12 @@ class BLE
         end
         return unless event_packet.getbyte(2) == HCI_SUBEVENT_LE_CONNECTION_COMPLETE
         return unless @uart_central_state == :TC_W4_CONNECT
-        @conn_handle = Utils.little_endian_to_int16(event_packet.byteslice(4, 2))
-        debug_puts "Connected. Handle: #{sprintf('0x%04X', @conn_handle)}"
-        discover_primary_services(@conn_handle)
-        @uart_central_state = :TC_W4_SERVICE_RESULT
+        _cycle_handle_connection_complete(event_packet)
+
+      when HCI_EVENT_META_GAP
+        return unless event_packet.getbyte(2) == GAP_SUBEVENT_LE_CONNECTION_COMPLETE
+        return unless @uart_central_state == :TC_W4_CONNECT
+        _cycle_handle_connection_complete(event_packet)
 
       when GATT_EVENT_QUERY_COMPLETE..GATT_EVENT_LONG_CHARACTERISTIC_VALUE_QUERY_RESULT
         _central_handle_gatt_event(event_type, event_packet)
@@ -78,6 +83,25 @@ class BLE
         value = event_packet.byteslice(8, value_length)
         @rx_buffer << value if value
       end
+    end
+
+    def _cycle_handle_connection_complete(event_packet)
+      status = event_packet.getbyte(3) || 0
+      if status != 0
+        debug_puts "Connection failed"
+        debug_puts "status"
+        debug_puts status
+        _central_reset
+        set_scan_params(:passive, 0x30, 0x30)
+        start_scan
+        @uart_central_state = :TC_W4_SCAN_RESULT
+        return
+      end
+
+      @conn_handle = Utils.little_endian_to_int16(event_packet.byteslice(4, 2))
+      debug_puts "Connected. Handle: #{sprintf('0x%04X', @conn_handle)}"
+      discover_primary_services(@conn_handle)
+      @uart_central_state = :TC_W4_SERVICE_RESULT
     end
 
     def _cycle_handle_advertising_packet(event_packet)

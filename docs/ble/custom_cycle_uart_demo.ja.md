@@ -166,6 +166,7 @@ speed_kmh
 - `scan_reports` が増えない場合は、ホストが advertising report を受け取れていない。
 - `scan_reports` は増えるが `Found cycle UART device` が出ない場合は、センサ側の device name が `PRCycle` で起動しているか、ホスト側の `DEVICE_NAME` と一致しているかを確認する。
 - `Found cycle UART device` が出て `gap_connect` が `0` ではない場合は、address type や接続パラメータ側の問題を疑う。
+- `Found cycle UART device` と `gap_connect 0` は出るが `TC_W4_CONNECT` のまま止まる場合は、ホスト側 `/lib/ble_cycle_host/uart_central_patch.rb` が `HCI_EVENT_META_GAP` / `GAP_SUBEVENT_LE_CONNECTION_COMPLETE` 対応版になっているか確認する。
 - `Connected. Handle` は出るが `NUS central ready` が出ない場合は、GATT service / characteristic discovery または CCCD write の失敗を疑う。
 
 ## scan report が 0 の場合
