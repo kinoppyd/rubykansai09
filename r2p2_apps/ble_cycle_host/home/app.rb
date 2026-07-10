@@ -14,7 +14,7 @@ DEVICE_ADDRESS = "88:A2:9E:0B:A7:DE"
 WHEEL_CIRCUMFERENCE_MM = 2105
 SCAN_STATUS_PERIOD_MS = 5000
 RX_TIMEOUT_MS = 1500
-DISPLAY_MODE = :gc9a01 # :none, :uart, or :gc9a01
+DISPLAY_MODE = :dual_gc9a01 # :none, :uart, :gc9a01, or :dual_gc9a01
 DISPLAY_PERIOD_MS = 100
 DISPLAY_UART_UNIT = :RP2040_UART0
 DISPLAY_UART_TXD_PIN = 0
@@ -29,7 +29,17 @@ DISPLAY_GC9A01_PIN_RST = 21
 DISPLAY_GC9A01_PIN_BL = 22
 DISPLAY_GC9A01_SPI_FREQUENCY = 40_000_000
 DISPLAY_GC9A01_BRIGHTNESS = 180
+DISPLAY_CADENCE_SPI_HOST = 1
+DISPLAY_CADENCE_PIN_SCLK = 10
+DISPLAY_CADENCE_PIN_MOSI = 11
+DISPLAY_CADENCE_PIN_CS = 9
+DISPLAY_CADENCE_PIN_DC = 12
+DISPLAY_CADENCE_PIN_RST = 13
+DISPLAY_CADENCE_PIN_BL = 14
+DISPLAY_CADENCE_SPI_FREQUENCY = 40_000_000
+DISPLAY_CADENCE_BRIGHTNESS = 180
 DISPLAY_STARTUP_SWEEP_MAX_KMH = 80
+DISPLAY_STARTUP_SWEEP_MAX_CADENCE_RPM = 180
 DISPLAY_STARTUP_SWEEP_STEP_KMH = 4
 DISPLAY_STARTUP_SWEEP_FRAME_MS = 20
 DISPLAY_STARTUP_SWEEP_PAUSE_MS = 250
@@ -72,7 +82,7 @@ def build_display_output
     puts "display_link"
     puts "uart"
     BLECycleHost::UARTDisplayOutput.new(uart)
-  when :gc9a01
+  when :gc9a01, :dual_gc9a01
     require "gc9a01_speedometer"
     GC9A01Display.configure(
       DISPLAY_GC9A01_SPI_HOST,
@@ -84,25 +94,42 @@ def build_display_output
       DISPLAY_GC9A01_PIN_BL,
       DISPLAY_GC9A01_SPI_FREQUENCY
     )
-    meter = GC9A01SimpleSpeedometer.new
+    cadence_meter = nil
+    if DISPLAY_MODE == :dual_gc9a01
+      GC9A01Display.configure_secondary(
+        DISPLAY_CADENCE_SPI_HOST,
+        DISPLAY_CADENCE_PIN_SCLK,
+        DISPLAY_CADENCE_PIN_MOSI,
+        DISPLAY_CADENCE_PIN_CS,
+        DISPLAY_CADENCE_PIN_DC,
+        DISPLAY_CADENCE_PIN_RST,
+        DISPLAY_CADENCE_PIN_BL,
+        DISPLAY_CADENCE_SPI_FREQUENCY
+      )
+      cadence_meter = GC9A01Speedometer.new(GC9A01Display::SECONDARY)
+      cadence_meter.brightness = DISPLAY_CADENCE_BRIGHTNESS
+    end
+    meter = GC9A01SimpleSpeedometer.new(GC9A01Display::PRIMARY)
     meter.brightness = DISPLAY_GC9A01_BRIGHTNESS
     puts "display_link"
-    puts "gc9a01"
-    BLECycleHost::GC9A01DisplayOutput.new(meter)
+    puts(DISPLAY_MODE == :dual_gc9a01 ? "dual_gc9a01" : "gc9a01")
+    BLECycleHost::GC9A01DisplayOutput.new(meter, cadence_meter)
   else
     BLECycleHost::NullDisplayOutput.new
   end
 end
 
-def write_display(output, speed_kmh, status, now)
+def write_display(output, speed_kmh, cadence_rpm, status, now)
   return false unless output.active?
-  output.write(speed_kmh, status)
+  output.write(speed_kmh, status, cadence_rpm)
   if DEBUG_DISPLAY
     puts "display_tx"
     puts "seq"
     puts output.last_sequence
     puts "speed_kmh"
     puts rounded_2(speed_kmh)
+    puts "cadence_rpm"
+    puts rounded_2(cadence_rpm)
     puts "status"
     puts status
   end
@@ -118,7 +145,8 @@ def run_display_startup_sweep(output)
   BLECycleHost::DisplayAnimation.startup_sweep(
     output,
     DISPLAY_STARTUP_SWEEP_MAX_KMH,
-    DISPLAY_STARTUP_SWEEP_STEP_KMH
+    DISPLAY_STARTUP_SWEEP_STEP_KMH,
+    DISPLAY_STARTUP_SWEEP_MAX_CADENCE_RPM
   ) do
     Machine.delay_ms(DISPLAY_STARTUP_SWEEP_FRAME_MS)
   end
@@ -174,6 +202,7 @@ central.start do |packet, reader|
       sent_at = write_display(
         display_output,
         estimator.speed_kmh,
+        0.0,
         BLECycleHost::DisplayStatus::BLE_CONNECTED | BLECycleHost::DisplayStatus::STALE,
         now
       )
@@ -218,6 +247,7 @@ central.start do |packet, reader|
     sent_at = write_display(
       display_output,
       estimator.speed_kmh,
+      estimator.cadence_rpm,
       display_status_value,
       now
     )

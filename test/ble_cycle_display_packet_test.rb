@@ -5,6 +5,11 @@ require "minitest/autorun"
 require "ble_cycle_display_packet"
 require "ble_cycle_host/display_output"
 
+module Machine
+  def self.delay_ms(_milliseconds)
+  end
+end
+
 class BLECycleDisplayPacketTest < Minitest::Test
   def test_host_display_status_matches_wire_protocol
     assert_equal BLECycleDisplayPacket::STATUS_BLE_CONNECTED,
@@ -101,6 +106,19 @@ class BLECycleDisplayPacketTest < Minitest::Test
     assert_equal 1, output.sequence
   end
 
+  def test_dual_gc9a01_output_renders_speed_and_cadence
+    speed_meter = FakeMeter.new
+    cadence_meter = FakeCadenceMeter.new
+    output = BLECycleHost::GC9A01DisplayOutput.new(speed_meter, cadence_meter)
+
+    assert_equal [[0.0, 0.0]], cadence_meter.rendered
+    assert_equal true, output.write(23.45, 0, 91.2)
+
+    assert_equal [0.0, 23.45], speed_meter.rendered
+    assert_equal [[0.0, 0.0], [23.45, 91.2]], cadence_meter.rendered
+    assert_equal 1, output.sequence
+  end
+
   def test_display_startup_sweep_reaches_maximum_and_returns_to_zero
     meter = FakeMeter.new
     output = BLECycleHost::GC9A01DisplayOutput.new(meter)
@@ -114,6 +132,23 @@ class BLECycleDisplayPacketTest < Minitest::Test
     assert_equal [0.0, 0, 4, 8, 4, 0], meter.rendered
     assert_equal 5, frame_count
     assert_equal 5, output.sequence
+  end
+
+  def test_dual_display_startup_sweep_moves_cadence_to_maximum
+    speed_meter = FakeMeter.new
+    cadence_meter = FakeCadenceMeter.new
+    output = BLECycleHost::GC9A01DisplayOutput.new(speed_meter, cadence_meter)
+
+    BLECycleHost::DisplayAnimation.startup_sweep(output, 8, 4, 180)
+
+    assert_equal [
+      [0.0, 0.0],
+      [0, 0],
+      [4, 90],
+      [8, 180],
+      [4, 90],
+      [0, 0]
+    ], cadence_meter.rendered
   end
 
   class FakeUART
@@ -138,6 +173,18 @@ class BLECycleDisplayPacketTest < Minitest::Test
 
     def render(speed_kmh)
       @rendered << speed_kmh
+    end
+  end
+
+  class FakeCadenceMeter
+    attr_reader :rendered
+
+    def initialize
+      @rendered = []
+    end
+
+    def render(speed_kmh, cadence_rpm)
+      @rendered << [speed_kmh, cadence_rpm]
     end
   end
 end
