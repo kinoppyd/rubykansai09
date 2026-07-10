@@ -29,6 +29,10 @@ DISPLAY_GC9A01_PIN_RST = 21
 DISPLAY_GC9A01_PIN_BL = 22
 DISPLAY_GC9A01_SPI_FREQUENCY = 40_000_000
 DISPLAY_GC9A01_BRIGHTNESS = 180
+DISPLAY_STARTUP_SWEEP_MAX_KMH = 80
+DISPLAY_STARTUP_SWEEP_STEP_KMH = 4
+DISPLAY_STARTUP_SWEEP_FRAME_MS = 8
+DISPLAY_STARTUP_SWEEP_PAUSE_MS = 250
 
 def rounded_2(v)
   (v * 100.0).to_i / 100.0
@@ -105,6 +109,24 @@ def write_display(output, speed_kmh, status, now)
   now
 end
 
+def run_display_startup_sweep(output)
+  return false unless output.active?
+
+  puts "display_startup_sweep"
+  puts "start"
+  Machine.delay_ms(DISPLAY_STARTUP_SWEEP_PAUSE_MS)
+  BLECycleHost::DisplayAnimation.startup_sweep(
+    output,
+    DISPLAY_STARTUP_SWEEP_MAX_KMH,
+    DISPLAY_STARTUP_SWEEP_STEP_KMH
+  ) do
+    Machine.delay_ms(DISPLAY_STARTUP_SWEEP_FRAME_MS)
+  end
+  puts "display_startup_sweep"
+  puts "done"
+  true
+end
+
 puts "BLE cycle host"
 puts "wheel_circumference_mm"
 puts WHEEL_CIRCUMFERENCE_MM
@@ -114,6 +136,7 @@ puts "target_address"
 puts DEVICE_ADDRESS
 
 display_output = build_display_output
+run_display_startup_sweep(display_output)
 estimator = BLECycleHost::SpeedEstimator.new(WHEEL_CIRCUMFERENCE_MM, RX_TIMEOUT_MS)
 central = BLECycleHost::UARTCentral.new(DEVICE_NAME, DEVICE_ADDRESS)
 central.debug = DEBUG_BLE

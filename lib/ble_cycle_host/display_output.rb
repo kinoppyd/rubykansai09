@@ -8,6 +8,37 @@ module BLECycleHost
     SENSOR_ERROR = 8
   end
 
+  module DisplayAnimation
+    def self.startup_sweep(output, max_speed_kmh, step_kmh)
+      return false unless output.active?
+      return false if max_speed_kmh <= 0 || step_kmh <= 0
+
+      output.write(0, 0)
+      yield if block_given?
+
+      speed = step_kmh
+      while speed < max_speed_kmh
+        output.write(speed, 0)
+        yield if block_given?
+        speed += step_kmh
+      end
+
+      output.write(max_speed_kmh, 0)
+      yield if block_given?
+
+      speed = max_speed_kmh - step_kmh
+      while speed > 0
+        output.write(speed, 0)
+        yield if block_given?
+        speed -= step_kmh
+      end
+
+      output.write(0, 0)
+      yield if block_given?
+      true
+    end
+  end
+
   class NullDisplayOutput
     def active?
       false

@@ -101,6 +101,21 @@ class BLECycleDisplayPacketTest < Minitest::Test
     assert_equal 1, output.sequence
   end
 
+  def test_display_startup_sweep_reaches_maximum_and_returns_to_zero
+    meter = FakeMeter.new
+    output = BLECycleHost::GC9A01DisplayOutput.new(meter)
+    frame_count = 0
+
+    result = BLECycleHost::DisplayAnimation.startup_sweep(output, 8, 4) do
+      frame_count += 1
+    end
+
+    assert_equal true, result
+    assert_equal [0.0, 0, 4, 8, 4, 0], meter.rendered
+    assert_equal 5, frame_count
+    assert_equal 5, output.sequence
+  end
+
   class FakeUART
     attr_reader :writes
 
