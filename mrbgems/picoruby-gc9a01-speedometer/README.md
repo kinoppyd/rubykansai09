@@ -18,6 +18,22 @@ meter.demo
 write frequencyの順です。省略した場合は上記と同じ既定値を使用します。LCDを
 初期化する`new`や`brightness=`より前に一度だけ呼び出してください。
 
+2台を独立して使う場合は、表示0をSPI0、表示1をSPI1へ接続します。
+
+```ruby
+GC9A01Display.configure(0, 18, 19, 17, 20, 21, 22, 40_000_000)
+GC9A01Display.configure_secondary(1, 10, 11, 9, 12, 13, 14, 40_000_000)
+
+speed_meter = GC9A01SimpleSpeedometer.new(GC9A01Display::PRIMARY)
+cadence_meter = GC9A01Speedometer.new(GC9A01Display::SECONDARY)
+
+speed_meter.render(28.4)
+cadence_meter.render(28.4, 92)
+```
+
+`GC9A01Speedometer`はアナログ針にケイデンス、右下のデジタル領域に速度を
+表示します。2台はフレームバッファを持たず、それぞれの前回針位置だけを保持します。
+
 RP2040のFemtoRubyでも同じオブジェクトAPIを使用します。
 
 センサ取得ループへ組み込む場合は、ブロックする `demo` ではなく `render` を

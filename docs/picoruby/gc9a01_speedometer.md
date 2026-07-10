@@ -33,6 +33,37 @@ RP2040とRP2350で共通です。
 
 MISOは使用しません。
 
+### 2台を独立表示する場合
+
+1台目は上記SPI0配線を維持し、2台目をSPI1へ接続します。
+
+| 2台目GC9A01 | Pico 2 GPIO | 備考 |
+| --- | ---: | --- |
+| VCC | 3V3 | 2台分の電源・バックライト電流を確認すること |
+| GND | GND | 1台目と共通GND |
+| SCL / CLK | GP10 | SPI1 SCLK |
+| SDA / DIN | GP11 | SPI1 MOSI |
+| CS | GP9 | Chip select |
+| DC | GP12 | Data/command |
+| RST | GP13 | Reset |
+| BL | GP14 | Backlight PWM |
+
+2台目は`configure_secondary`で設定し、meter生成時に表示番号を渡します。
+
+```ruby
+GC9A01Display.configure(0, 18, 19, 17, 20, 21, 22, 40_000_000)
+GC9A01Display.configure_secondary(1, 10, 11, 9, 12, 13, 14, 40_000_000)
+
+speed_meter = GC9A01SimpleSpeedometer.new(GC9A01Display::PRIMARY)
+cadence_meter = GC9A01Speedometer.new(GC9A01Display::SECONDARY)
+
+speed_meter.render(32.5)
+cadence_meter.render(32.5, 90)
+```
+
+同じSPI controllerを2つのLovyanGFX bus objectで共有する構成は、この実装の
+検証対象外です。独立表示ではSPI0とSPI1を分けてください。
+
 ## PicoRubyへの組み込み
 
 リポジトリrootにPicoRubyとLovyanGFXを用意します。
@@ -150,6 +181,7 @@ cmake --build build/r2p2/picoruby/pico2_w/prod
 変更可能な変数は`GC9A01_SPI_PORT`、`GC9A01_PIN_SCLK`、
 `GC9A01_PIN_MOSI`、`GC9A01_PIN_CS`、`GC9A01_PIN_DC`、
 `GC9A01_PIN_RST`、`GC9A01_PIN_BL`、`GC9A01_SPI_FREQUENCY`です。
+2台目は同名の`GC9A01_SECONDARY_*`変数で設定できます。
 
 ## Rubyから実行する
 
