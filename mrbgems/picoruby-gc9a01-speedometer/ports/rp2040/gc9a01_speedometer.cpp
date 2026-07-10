@@ -44,6 +44,38 @@ extern "C" {
 #define GC9A01_SPI_FREQUENCY 40000000
 #endif
 
+#ifndef GC9A01_SECONDARY_SPI_PORT
+#define GC9A01_SECONDARY_SPI_PORT 1
+#endif
+
+#ifndef GC9A01_SECONDARY_PIN_SCLK
+#define GC9A01_SECONDARY_PIN_SCLK 10
+#endif
+
+#ifndef GC9A01_SECONDARY_PIN_MOSI
+#define GC9A01_SECONDARY_PIN_MOSI 11
+#endif
+
+#ifndef GC9A01_SECONDARY_PIN_CS
+#define GC9A01_SECONDARY_PIN_CS 9
+#endif
+
+#ifndef GC9A01_SECONDARY_PIN_DC
+#define GC9A01_SECONDARY_PIN_DC 12
+#endif
+
+#ifndef GC9A01_SECONDARY_PIN_RST
+#define GC9A01_SECONDARY_PIN_RST 13
+#endif
+
+#ifndef GC9A01_SECONDARY_PIN_BL
+#define GC9A01_SECONDARY_PIN_BL 14
+#endif
+
+#ifndef GC9A01_SECONDARY_SPI_FREQUENCY
+#define GC9A01_SECONDARY_SPI_FREQUENCY 40000000
+#endif
+
 namespace {
 
 constexpr int kWidth = 240;
@@ -58,6 +90,7 @@ constexpr float kMaxDisplayedSpeed = 999.0f;
 constexpr float kSimpleStartAngle = 150.0f;
 constexpr float kSimpleSweepAngle = 240.0f;
 constexpr float kSimpleMaxSpeed = 80.0f;
+constexpr int kDisplayCount = 2;
 
 constexpr uint32_t kBackground = 0x050607;
 constexpr uint32_t kDialInner = 0x010202;
@@ -83,10 +116,22 @@ struct DisplayConfig {
   uint32_t frequency;
 };
 
-DisplayConfig display_config = {
-    GC9A01_SPI_PORT,       GC9A01_PIN_SCLK, GC9A01_PIN_MOSI,
-    GC9A01_PIN_CS,         GC9A01_PIN_DC,   GC9A01_PIN_RST,
-    GC9A01_PIN_BL,         GC9A01_SPI_FREQUENCY,
+DisplayConfig display_configs[kDisplayCount] = {
+    {
+        GC9A01_SPI_PORT,       GC9A01_PIN_SCLK, GC9A01_PIN_MOSI,
+        GC9A01_PIN_CS,         GC9A01_PIN_DC,   GC9A01_PIN_RST,
+        GC9A01_PIN_BL,         GC9A01_SPI_FREQUENCY,
+    },
+    {
+        GC9A01_SECONDARY_SPI_PORT,
+        GC9A01_SECONDARY_PIN_SCLK,
+        GC9A01_SECONDARY_PIN_MOSI,
+        GC9A01_SECONDARY_PIN_CS,
+        GC9A01_SECONDARY_PIN_DC,
+        GC9A01_SECONDARY_PIN_RST,
+        GC9A01_SECONDARY_PIN_BL,
+        GC9A01_SECONDARY_SPI_FREQUENCY,
+    },
 };
 
 class GC9A01Display : public lgfx::LGFX_Device {
@@ -119,7 +164,7 @@ class GC9A01Display : public lgfx::LGFX_Device {
     panel_config.invert = true;
     panel_config.rgb_order = false;
     panel_config.dlen_16bit = false;
-    panel_config.bus_shared = false;
+    panel_config.bus_shared = true;
     panel_.config(panel_config);
 
     if (config.pin_bl >= 0) {
@@ -127,7 +172,7 @@ class GC9A01Display : public lgfx::LGFX_Device {
       light_config.pin_bl = config.pin_bl;
       light_config.invert = false;
       light_config.freq = 12000;
-      light_config.pwm_channel = 0;
+      light_config.pwm_channel = config.pin_bl & 1;
       light_.config(light_config);
       panel_.setLight(&light_);
     }
@@ -141,20 +186,27 @@ class GC9A01Display : public lgfx::LGFX_Device {
   lgfx::Light_PWM light_;
 };
 
-GC9A01Display display;
-bool initialized = false;
-bool initialization_failed = false;
-uint32_t animation_started_ms = 0;
-float previous_rpm = 0.0f;
-float previous_simple_speed = 0.0f;
-
 enum MeterMode {
   kNoMeter,
   kTachometer,
   kSimpleSpeedometer,
 };
 
-MeterMode active_meter = kNoMeter;
+struct DisplayState {
+  bool initialized;
+  bool initialization_failed;
+  uint32_t animation_started_ms;
+  float previous_rpm;
+  float previous_simple_speed;
+  MeterMode active_meter;
+};
+
+GC9A01Display displays[kDisplayCount];
+DisplayState display_states[kDisplayCount] = {};
+
+bool valid_display_index(int display_index) {
+  return 0 <= display_index && display_index < kDisplayCount;
+}
 
 float to_radians(float degrees) {
   return degrees * kPi / 180.0f;
@@ -174,7 +226,8 @@ void polar_point(float angle_degrees, float radius, int* x, int* y) {
   *y = static_cast<int>(std::lround(kCenterY + std::sin(radians) * radius));
 }
 
-void fill_scale_band(int first_rpm, int last_rpm, uint32_t color,
+void fill_scale_band(GC9A01Display& display, int first_rpm, int last_rpm,
+                     uint32_t color,
                      float inner_radius = 72.0f,
                      float outer_radius = 104.0f) {
   for (int rpm = first_rpm; rpm < last_rpm; rpm += 2) {
@@ -199,24 +252,24 @@ void fill_scale_band(int first_rpm, int last_rpm, uint32_t color,
   }
 }
 
-void draw_rings() {
+void draw_rings(GC9A01Display& display) {
   display.fillScreen(kBackground);
   display.fillCircle(kCenterX, kCenterY, 112, kRingDark);
   display.fillCircle(kCenterX, kCenterY, 107, kBackground);
   display.fillCircle(kCenterX, kCenterY, 105, kDialInner);
   display.drawCircle(kCenterX, kCenterY, 106, 0x34383a);
-  fill_scale_band(0, 180, kRingLight);
+  fill_scale_band(display, 0, 180, kRingLight);
   display.fillCircle(kCenterX, kCenterY, 70, kDialInner);
   display.drawCircle(kCenterX, kCenterY, 71, 0x292c2e);
 }
 
-void draw_redline_arc() {
+void draw_redline_arc(GC9A01Display& display) {
   for (int rpm = 140; rpm < 180; rpm += 10) {
-    fill_scale_band(rpm, rpm + 8, kAccent, 88.0f, 104.0f);
+    fill_scale_band(display, rpm, rpm + 8, kAccent, 88.0f, 104.0f);
   }
 }
 
-void draw_ticks() {
+void draw_ticks(GC9A01Display& display) {
   for (int rpm = 0; rpm <= 180; rpm += 5) {
     const bool major = (rpm % 30) == 0;
     const float angle = rpm_to_angle(static_cast<float>(rpm));
@@ -238,7 +291,7 @@ void draw_ticks() {
   }
 }
 
-void draw_labels() {
+void draw_labels(GC9A01Display& display) {
   display.setFont(&fonts::Font0);
   display.setTextDatum(middle_center);
   display.setTextColor(kText, kDialInner);
@@ -257,7 +310,7 @@ void draw_labels() {
   display.drawCenterString("rpm", kCenterX, 93, &fonts::Font0);
 }
 
-void draw_speed_value(float speed) {
+void draw_speed_value(GC9A01Display& display, float speed) {
   char value[4];
   std::snprintf(value, sizeof(value), "%03d", static_cast<int>(speed + 0.5f));
   display.fillRect(158, 136, 68, 48, kDialInner);
@@ -268,7 +321,7 @@ void draw_speed_value(float speed) {
   display.drawString("km/h", 192, 176, &fonts::Font0);
 }
 
-void draw_needle(float rpm) {
+void draw_needle(GC9A01Display& display, float rpm) {
   const float angle = rpm_to_angle(rpm);
   int tip_x;
   int tip_y;
@@ -292,14 +345,14 @@ void draw_needle(float rpm) {
   display.fillCircle(kCenterX - 2, kCenterY - 2, 2, 0xffa09b);
 }
 
-void draw_static_dial() {
-  draw_rings();
-  draw_redline_arc();
-  draw_ticks();
-  draw_labels();
+void draw_static_dial(GC9A01Display& display) {
+  draw_rings(display);
+  draw_redline_arc(display);
+  draw_ticks(display);
+  draw_labels(display);
 }
 
-void erase_needle(float rpm) {
+void erase_needle(GC9A01Display& display, float rpm) {
   int tip_x;
   int tip_y;
   int left_x;
@@ -322,7 +375,7 @@ void erase_needle(float rpm) {
   display.fillCircle(kCenterX, kCenterY, 11, kDialInner);
 }
 
-void restore_needle_background(float rpm) {
+void restore_needle_background(GC9A01Display& display, float rpm) {
   int tip_x;
   int tip_y;
   int tail_x;
@@ -346,15 +399,15 @@ void restore_needle_background(float rpm) {
   if (bottom >= kHeight) bottom = kHeight - 1;
 
   display.setClipRect(left, top, right - left + 1, bottom - top + 1);
-  erase_needle(rpm);
-  fill_scale_band(0, 180, kRingLight);
-  draw_redline_arc();
-  draw_ticks();
-  draw_labels();
+  erase_needle(display, rpm);
+  fill_scale_band(display, 0, 180, kRingLight);
+  draw_redline_arc(display);
+  draw_ticks(display);
+  draw_labels(display);
   display.clearClipRect();
 }
 
-void draw_simple_scale_arc() {
+void draw_simple_scale_arc(GC9A01Display& display) {
   for (int speed = 0; speed < 80; ++speed) {
     int x0;
     int y0;
@@ -373,7 +426,7 @@ void draw_simple_scale_arc() {
   }
 }
 
-void draw_simple_ticks() {
+void draw_simple_ticks(GC9A01Display& display) {
   for (int speed = 0; speed <= 80; speed += 2) {
     const bool major = (speed % 10) == 0;
     const float angle = simple_speed_to_angle(static_cast<float>(speed));
@@ -393,7 +446,7 @@ void draw_simple_ticks() {
   }
 }
 
-void draw_simple_labels() {
+void draw_simple_labels(GC9A01Display& display) {
   display.setFont(&fonts::Font0);
   display.setTextDatum(middle_center);
   display.setTextColor(kSimpleWhite, kSimpleBlack);
@@ -409,14 +462,14 @@ void draw_simple_labels() {
   display.drawCenterString("km/h", kCenterX, 96, &fonts::Font0);
 }
 
-void draw_simple_static_dial() {
+void draw_simple_static_dial(GC9A01Display& display) {
   display.fillScreen(kSimpleBlack);
-  draw_simple_scale_arc();
-  draw_simple_ticks();
-  draw_simple_labels();
+  draw_simple_scale_arc(display);
+  draw_simple_ticks(display);
+  draw_simple_labels(display);
 }
 
-void draw_simple_needle(float speed) {
+void draw_simple_needle(GC9A01Display& display, float speed) {
   const float angle = simple_speed_to_angle(speed);
   int tip_x;
   int tip_y;
@@ -436,7 +489,7 @@ void draw_simple_needle(float speed) {
   display.fillCircle(kCenterX, kCenterY, 7, kSimpleRed);
 }
 
-void erase_simple_needle(float speed) {
+void erase_simple_needle(GC9A01Display& display, float speed) {
   const float angle = simple_speed_to_angle(speed);
   int tip_x;
   int tip_y;
@@ -456,7 +509,7 @@ void erase_simple_needle(float speed) {
   display.fillCircle(kCenterX, kCenterY, 8, kSimpleBlack);
 }
 
-void restore_simple_needle_background(float speed) {
+void restore_simple_needle_background(GC9A01Display& display, float speed) {
   int tip_x;
   int tip_y;
   int tail_x;
@@ -480,25 +533,30 @@ void restore_simple_needle_background(float speed) {
   if (bottom >= kHeight) bottom = kHeight - 1;
 
   display.setClipRect(left, top, right - left + 1, bottom - top + 1);
-  erase_simple_needle(speed);
-  draw_simple_scale_arc();
-  draw_simple_ticks();
-  draw_simple_labels();
+  erase_simple_needle(display, speed);
+  draw_simple_scale_arc(display);
+  draw_simple_ticks(display);
+  draw_simple_labels(display);
   display.clearClipRect();
 }
 
 enum ConfigResult {
   kConfigOk,
   kConfigLocked,
+  kConfigInvalidDisplay,
   kConfigInvalidHost,
   kConfigInvalidPin,
   kConfigInvalidFrequency,
 };
 
-ConfigResult set_display_config(int spi_host, int pin_sclk, int pin_mosi,
-                                int pin_cs, int pin_dc, int pin_rst,
-                                int pin_bl, int frequency) {
-  if (initialized) {
+ConfigResult set_display_config(int display_index, int spi_host, int pin_sclk,
+                                int pin_mosi, int pin_cs, int pin_dc,
+                                int pin_rst, int pin_bl, int frequency) {
+  if (!valid_display_index(display_index)) {
+    return kConfigInvalidDisplay;
+  }
+  DisplayState& state = display_states[display_index];
+  if (state.initialized) {
     return kConfigLocked;
   }
   if (spi_host < 0 || spi_host > 1) {
@@ -511,43 +569,52 @@ ConfigResult set_display_config(int spi_host, int pin_sclk, int pin_mosi,
   if (frequency < 1000000 || frequency > 100000000) {
     return kConfigInvalidFrequency;
   }
-  display_config.spi_host = spi_host;
-  display_config.pin_sclk = pin_sclk;
-  display_config.pin_mosi = pin_mosi;
-  display_config.pin_cs = pin_cs;
-  display_config.pin_dc = pin_dc;
-  display_config.pin_rst = pin_rst;
-  display_config.pin_bl = pin_bl;
-  display_config.frequency = static_cast<uint32_t>(frequency);
+  DisplayConfig& config = display_configs[display_index];
+  config.spi_host = spi_host;
+  config.pin_sclk = pin_sclk;
+  config.pin_mosi = pin_mosi;
+  config.pin_cs = pin_cs;
+  config.pin_dc = pin_dc;
+  config.pin_rst = pin_rst;
+  config.pin_bl = pin_bl;
+  config.frequency = static_cast<uint32_t>(frequency);
   return kConfigOk;
 }
 
-bool begin_display() {
-  if (initialized) {
-    return true;
-  }
-  if (initialization_failed) {
+bool begin_display(int display_index) {
+  if (!valid_display_index(display_index)) {
     return false;
   }
-  display.configure(display_config);
+  DisplayState& state = display_states[display_index];
+  DisplayConfig& config = display_configs[display_index];
+  GC9A01Display& display = displays[display_index];
+  if (state.initialized) {
+    return true;
+  }
+  if (state.initialization_failed) {
+    return false;
+  }
+  display.configure(config);
   if (!display.init()) {
-    initialization_failed = true;
+    state.initialization_failed = true;
     return false;
   }
   display.setRotation(0);
   display.setColorDepth(16);
-  if (display_config.pin_bl >= 0) {
+  if (config.pin_bl >= 0) {
     display.setBrightness(220);
   }
-  animation_started_ms = to_ms_since_boot(get_absolute_time());
-  initialized = true;
+  state.animation_started_ms = to_ms_since_boot(get_absolute_time());
+  state.initialized = true;
   return true;
 }
 
-float render_values(float speed_kmh, float rpm) {
-  if (!begin_display()) {
+float render_values(int display_index, float speed_kmh, float rpm) {
+  if (!begin_display(display_index)) {
     return -1.0f;
   }
+  DisplayState& state = display_states[display_index];
+  GC9A01Display& display = displays[display_index];
   if (speed_kmh < 0.0f) {
     speed_kmh = 0.0f;
   } else if (speed_kmh > kMaxDisplayedSpeed) {
@@ -559,55 +626,61 @@ float render_values(float speed_kmh, float rpm) {
     rpm = kMaxRpm;
   }
   display.startWrite();
-  if (active_meter == kTachometer) {
-    restore_needle_background(previous_rpm);
+  if (state.active_meter == kTachometer) {
+    restore_needle_background(display, state.previous_rpm);
   } else {
-    draw_static_dial();
-    active_meter = kTachometer;
+    draw_static_dial(display);
+    state.active_meter = kTachometer;
   }
-  draw_speed_value(speed_kmh);
-  draw_needle(rpm);
+  draw_speed_value(display, speed_kmh);
+  draw_needle(display, rpm);
   display.endWrite();
-  previous_rpm = rpm;
+  state.previous_rpm = rpm;
   return speed_kmh;
 }
 
-float render_simple_speed(float speed_kmh) {
-  if (!begin_display()) {
+float render_simple_speed(int display_index, float speed_kmh) {
+  if (!begin_display(display_index)) {
     return -1.0f;
   }
+  DisplayState& state = display_states[display_index];
+  GC9A01Display& display = displays[display_index];
   if (speed_kmh < 0.0f) {
     speed_kmh = 0.0f;
   } else if (speed_kmh > kSimpleMaxSpeed) {
     speed_kmh = kSimpleMaxSpeed;
   }
   display.startWrite();
-  if (active_meter == kSimpleSpeedometer) {
-    restore_simple_needle_background(previous_simple_speed);
+  if (state.active_meter == kSimpleSpeedometer) {
+    restore_simple_needle_background(display, state.previous_simple_speed);
   } else {
-    draw_simple_static_dial();
-    active_meter = kSimpleSpeedometer;
+    draw_simple_static_dial(display);
+    state.active_meter = kSimpleSpeedometer;
   }
-  draw_simple_needle(speed_kmh);
+  draw_simple_needle(display, speed_kmh);
   display.endWrite();
-  previous_simple_speed = speed_kmh;
+  state.previous_simple_speed = speed_kmh;
   return speed_kmh;
 }
 
-void demo_values(float* speed_kmh, float* rpm) {
+void demo_values(int display_index, float* speed_kmh, float* rpm) {
   constexpr uint32_t kCycleMs = 9000;
+  const DisplayState& state = display_states[display_index];
   const uint32_t now = to_ms_since_boot(get_absolute_time());
-  const float phase = static_cast<float>((now - animation_started_ms) % kCycleMs) /
+  const float phase = static_cast<float>(
+                          (now - state.animation_started_ms) % kCycleMs) /
                       static_cast<float>(kCycleMs);
   const float sweep = 0.5f * (1.0f - std::cos(phase * 2.0f * kPi));
   *speed_kmh = sweep * 60.0f;
   *rpm = sweep * kMaxRpm;
 }
 
-float simple_demo_speed() {
+float simple_demo_speed(int display_index) {
   constexpr uint32_t kCycleMs = 7000;
+  const DisplayState& state = display_states[display_index];
   const uint32_t now = to_ms_since_boot(get_absolute_time());
-  const float phase = static_cast<float>((now - animation_started_ms) % kCycleMs) /
+  const float phase = static_cast<float>(
+                          (now - state.animation_started_ms) % kCycleMs) /
                       static_cast<float>(kCycleMs);
   return 0.5f * (1.0f - std::cos(phase * 2.0f * kPi)) * kSimpleMaxSpeed;
 }
@@ -616,6 +689,7 @@ float simple_demo_speed() {
 
 mrb_value mrb_display_configure(mrb_state* mrb, mrb_value self) {
   (void)self;
+  mrb_int display_index;
   mrb_int spi_host;
   mrb_int pin_sclk;
   mrb_int pin_mosi;
@@ -624,15 +698,18 @@ mrb_value mrb_display_configure(mrb_state* mrb, mrb_value self) {
   mrb_int pin_rst;
   mrb_int pin_bl;
   mrb_int frequency;
-  mrb_get_args(mrb, "iiiiiiii", &spi_host, &pin_sclk, &pin_mosi, &pin_cs,
-               &pin_dc, &pin_rst, &pin_bl, &frequency);
+  mrb_get_args(mrb, "iiiiiiiii", &display_index, &spi_host, &pin_sclk,
+               &pin_mosi, &pin_cs, &pin_dc, &pin_rst, &pin_bl, &frequency);
   const ConfigResult result = set_display_config(
-      static_cast<int>(spi_host), static_cast<int>(pin_sclk),
-      static_cast<int>(pin_mosi), static_cast<int>(pin_cs),
-      static_cast<int>(pin_dc), static_cast<int>(pin_rst),
-      static_cast<int>(pin_bl), static_cast<int>(frequency));
+      static_cast<int>(display_index), static_cast<int>(spi_host),
+      static_cast<int>(pin_sclk), static_cast<int>(pin_mosi),
+      static_cast<int>(pin_cs), static_cast<int>(pin_dc),
+      static_cast<int>(pin_rst), static_cast<int>(pin_bl),
+      static_cast<int>(frequency));
   if (result == kConfigLocked) {
     mrb_raise(mrb, E_RUNTIME_ERROR, "display is already initialized");
+  } else if (result == kConfigInvalidDisplay) {
+    mrb_raise(mrb, E_ARGUMENT_ERROR, "display_index must be 0 or 1");
   } else if (result == kConfigInvalidHost) {
     mrb_raise(mrb, E_ARGUMENT_ERROR, "spi_host must be 0 or 1");
   } else if (result == kConfigInvalidPin) {
@@ -645,61 +722,100 @@ mrb_value mrb_display_configure(mrb_state* mrb, mrb_value self) {
 }
 
 mrb_value mrb_speedometer_init(mrb_state* mrb, mrb_value self) {
-  mrb_get_args(mrb, "");
-  if (!begin_display()) {
+  mrb_int display_index;
+  mrb_get_args(mrb, "i", &display_index);
+  if (!valid_display_index(static_cast<int>(display_index))) {
+    mrb_raise(mrb, E_ARGUMENT_ERROR, "display_index must be 0 or 1");
+  }
+  if (!begin_display(static_cast<int>(display_index))) {
     mrb_raise(mrb, E_RUNTIME_ERROR, "GC9A01 display initialization failed");
   }
   return self;
 }
 
 mrb_value mrb_speedometer_render(mrb_state* mrb, mrb_value self) {
+  (void)self;
+  mrb_int display_index;
   mrb_float speed;
   mrb_float rpm;
-  mrb_get_args(mrb, "ff", &speed, &rpm);
-  return mrb_float_value(
-      mrb, render_values(static_cast<float>(speed), static_cast<float>(rpm)));
+  mrb_get_args(mrb, "iff", &display_index, &speed, &rpm);
+  if (!valid_display_index(static_cast<int>(display_index))) {
+    mrb_raise(mrb, E_ARGUMENT_ERROR, "display_index must be 0 or 1");
+  }
+  return mrb_float_value(mrb, render_values(
+      static_cast<int>(display_index), static_cast<float>(speed),
+      static_cast<float>(rpm)));
 }
 
 mrb_value mrb_speedometer_demo_step(mrb_state* mrb, mrb_value self) {
   (void)self;
+  mrb_int display_index;
+  mrb_get_args(mrb, "i", &display_index);
+  if (!valid_display_index(static_cast<int>(display_index))) {
+    mrb_raise(mrb, E_ARGUMENT_ERROR, "display_index must be 0 or 1");
+  }
   float speed_kmh;
   float rpm;
-  demo_values(&speed_kmh, &rpm);
-  return mrb_float_value(mrb, render_values(speed_kmh, rpm));
+  demo_values(static_cast<int>(display_index), &speed_kmh, &rpm);
+  return mrb_float_value(
+      mrb, render_values(static_cast<int>(display_index), speed_kmh, rpm));
 }
 
 mrb_value mrb_simple_speedometer_render(mrb_state* mrb, mrb_value self) {
   (void)self;
+  mrb_int display_index;
   mrb_float speed;
-  mrb_get_args(mrb, "f", &speed);
-  return mrb_float_value(mrb, render_simple_speed(static_cast<float>(speed)));
+  mrb_get_args(mrb, "if", &display_index, &speed);
+  if (!valid_display_index(static_cast<int>(display_index))) {
+    mrb_raise(mrb, E_ARGUMENT_ERROR, "display_index must be 0 or 1");
+  }
+  return mrb_float_value(mrb, render_simple_speed(
+      static_cast<int>(display_index), static_cast<float>(speed)));
 }
 
 mrb_value mrb_simple_speedometer_demo_step(mrb_state* mrb, mrb_value self) {
   (void)self;
-  return mrb_float_value(mrb, render_simple_speed(simple_demo_speed()));
+  mrb_int display_index;
+  mrb_get_args(mrb, "i", &display_index);
+  if (!valid_display_index(static_cast<int>(display_index))) {
+    mrb_raise(mrb, E_ARGUMENT_ERROR, "display_index must be 0 or 1");
+  }
+  return mrb_float_value(mrb, render_simple_speed(
+      static_cast<int>(display_index),
+      simple_demo_speed(static_cast<int>(display_index))));
 }
 
 mrb_value mrb_speedometer_set_brightness(mrb_state* mrb, mrb_value self) {
   (void)self;
+  mrb_int display_index;
   mrb_int value;
-  mrb_get_args(mrb, "i", &value);
+  mrb_get_args(mrb, "ii", &display_index, &value);
+  if (!valid_display_index(static_cast<int>(display_index))) {
+    mrb_raise(mrb, E_ARGUMENT_ERROR, "display_index must be 0 or 1");
+  }
   if (value < 0) {
     value = 0;
   } else if (value > 255) {
     value = 255;
   }
-  if (!begin_display()) {
+  if (!begin_display(static_cast<int>(display_index))) {
     mrb_raise(mrb, E_RUNTIME_ERROR, "GC9A01 display initialization failed");
   }
-  if (display_config.pin_bl >= 0) {
-    display.setBrightness(static_cast<uint8_t>(value));
+  const DisplayConfig& config = display_configs[display_index];
+  if (config.pin_bl >= 0) {
+    displays[display_index].setBrightness(static_cast<uint8_t>(value));
   }
   return mrb_fixnum_value(value);
 }
 
-mrb_value mrb_speedometer_initialized(mrb_state*, mrb_value) {
-  return mrb_bool_value(initialized);
+mrb_value mrb_speedometer_initialized(mrb_state* mrb, mrb_value self) {
+  (void)self;
+  mrb_int display_index;
+  mrb_get_args(mrb, "i", &display_index);
+  if (!valid_display_index(static_cast<int>(display_index))) {
+    mrb_raise(mrb, E_ARGUMENT_ERROR, "display_index must be 0 or 1");
+  }
+  return mrb_bool_value(display_states[display_index].initialized);
 }
 
 #elif defined(PICORB_VM_MRUBYC)
@@ -719,11 +835,11 @@ bool mrbc_numeric_arg(mrbc_vm* vm, mrbc_value* v, int index,
 }
 
 void c_display_configure(mrbc_vm* vm, mrbc_value* v, int argc) {
-  if (argc != 8) {
+  if (argc != 9) {
     mrbc_raise(vm, MRBC_CLASS(ArgumentError), "wrong number of arguments");
     return;
   }
-  for (int index = 1; index <= 8; ++index) {
+  for (int index = 1; index <= 9; ++index) {
     if (GET_TT_ARG(index) != MRBC_TT_INTEGER) {
       mrbc_raise(vm, MRBC_CLASS(TypeError), "integer argument required");
       return;
@@ -731,9 +847,15 @@ void c_display_configure(mrbc_vm* vm, mrbc_value* v, int argc) {
   }
   const ConfigResult result = set_display_config(
       GET_INT_ARG(1), GET_INT_ARG(2), GET_INT_ARG(3), GET_INT_ARG(4),
-      GET_INT_ARG(5), GET_INT_ARG(6), GET_INT_ARG(7), GET_INT_ARG(8));
+      GET_INT_ARG(5), GET_INT_ARG(6), GET_INT_ARG(7), GET_INT_ARG(8),
+      GET_INT_ARG(9));
   if (result == kConfigLocked) {
     mrbc_raise(vm, MRBC_CLASS(RuntimeError), "display is already initialized");
+    return;
+  }
+  if (result == kConfigInvalidDisplay) {
+    mrbc_raise(vm, MRBC_CLASS(ArgumentError),
+               "display_index must be 0 or 1");
     return;
   }
   if (result == kConfigInvalidHost) {
@@ -753,59 +875,6 @@ void c_display_configure(mrbc_vm* vm, mrbc_value* v, int argc) {
 }
 
 void c_speedometer_init(mrbc_vm* vm, mrbc_value* v, int argc) {
-  if (argc != 0) {
-    mrbc_raise(vm, MRBC_CLASS(ArgumentError), "wrong number of arguments");
-    return;
-  }
-  if (!begin_display()) {
-    mrbc_raise(vm, MRBC_CLASS(RuntimeError),
-               "GC9A01 display initialization failed");
-    return;
-  }
-  SET_TRUE_RETURN();
-}
-
-void c_speedometer_render(mrbc_vm* vm, mrbc_value* v, int argc) {
-  if (argc != 2) {
-    mrbc_raise(vm, MRBC_CLASS(ArgumentError), "wrong number of arguments");
-    return;
-  }
-  float speed;
-  float rpm;
-  if (!mrbc_numeric_arg(vm, v, 1, &speed) ||
-      !mrbc_numeric_arg(vm, v, 2, &rpm)) {
-    return;
-  }
-  SET_FLOAT_RETURN(render_values(speed, rpm));
-}
-
-void c_speedometer_demo_step(mrbc_vm* vm, mrbc_value* v, int argc) {
-  (void)argc;
-  float speed;
-  float rpm;
-  demo_values(&speed, &rpm);
-  SET_FLOAT_RETURN(render_values(speed, rpm));
-}
-
-void c_simple_speedometer_render(mrbc_vm* vm, mrbc_value* v, int argc) {
-  if (argc != 1) {
-    mrbc_raise(vm, MRBC_CLASS(ArgumentError), "wrong number of arguments");
-    return;
-  }
-  float speed;
-  if (!mrbc_numeric_arg(vm, v, 1, &speed)) {
-    return;
-  }
-  SET_FLOAT_RETURN(render_simple_speed(speed));
-}
-
-void c_simple_speedometer_demo_step(mrbc_vm* vm, mrbc_value* v,
-                                    int argc) {
-  (void)argc;
-  SET_FLOAT_RETURN(render_simple_speed(simple_demo_speed()));
-}
-
-void c_speedometer_set_brightness(mrbc_vm* vm, mrbc_value* v, int argc) {
   if (argc != 1) {
     mrbc_raise(vm, MRBC_CLASS(ArgumentError), "wrong number of arguments");
     return;
@@ -814,26 +883,144 @@ void c_speedometer_set_brightness(mrbc_vm* vm, mrbc_value* v, int argc) {
     mrbc_raise(vm, MRBC_CLASS(TypeError), "integer argument required");
     return;
   }
-  int value = GET_INT_ARG(1);
+  const int display_index = GET_INT_ARG(1);
+  if (!valid_display_index(display_index)) {
+    mrbc_raise(vm, MRBC_CLASS(ArgumentError),
+               "display_index must be 0 or 1");
+    return;
+  }
+  if (!begin_display(display_index)) {
+    mrbc_raise(vm, MRBC_CLASS(RuntimeError),
+               "GC9A01 display initialization failed");
+    return;
+  }
+  SET_TRUE_RETURN();
+}
+
+void c_speedometer_render(mrbc_vm* vm, mrbc_value* v, int argc) {
+  if (argc != 3) {
+    mrbc_raise(vm, MRBC_CLASS(ArgumentError), "wrong number of arguments");
+    return;
+  }
+  if (GET_TT_ARG(1) != MRBC_TT_INTEGER) {
+    mrbc_raise(vm, MRBC_CLASS(TypeError), "integer argument required");
+    return;
+  }
+  const int display_index = GET_INT_ARG(1);
+  if (!valid_display_index(display_index)) {
+    mrbc_raise(vm, MRBC_CLASS(ArgumentError),
+               "display_index must be 0 or 1");
+    return;
+  }
+  float speed;
+  float rpm;
+  if (!mrbc_numeric_arg(vm, v, 2, &speed) ||
+      !mrbc_numeric_arg(vm, v, 3, &rpm)) {
+    return;
+  }
+  SET_FLOAT_RETURN(render_values(display_index, speed, rpm));
+}
+
+void c_speedometer_demo_step(mrbc_vm* vm, mrbc_value* v, int argc) {
+  if (argc != 1 || GET_TT_ARG(1) != MRBC_TT_INTEGER) {
+    mrbc_raise(vm, MRBC_CLASS(ArgumentError), "display index required");
+    return;
+  }
+  const int display_index = GET_INT_ARG(1);
+  if (!valid_display_index(display_index)) {
+    mrbc_raise(vm, MRBC_CLASS(ArgumentError),
+               "display_index must be 0 or 1");
+    return;
+  }
+  float speed;
+  float rpm;
+  demo_values(display_index, &speed, &rpm);
+  SET_FLOAT_RETURN(render_values(display_index, speed, rpm));
+}
+
+void c_simple_speedometer_render(mrbc_vm* vm, mrbc_value* v, int argc) {
+  if (argc != 2) {
+    mrbc_raise(vm, MRBC_CLASS(ArgumentError), "wrong number of arguments");
+    return;
+  }
+  if (GET_TT_ARG(1) != MRBC_TT_INTEGER) {
+    mrbc_raise(vm, MRBC_CLASS(TypeError), "integer argument required");
+    return;
+  }
+  const int display_index = GET_INT_ARG(1);
+  if (!valid_display_index(display_index)) {
+    mrbc_raise(vm, MRBC_CLASS(ArgumentError),
+               "display_index must be 0 or 1");
+    return;
+  }
+  float speed;
+  if (!mrbc_numeric_arg(vm, v, 2, &speed)) {
+    return;
+  }
+  SET_FLOAT_RETURN(render_simple_speed(display_index, speed));
+}
+
+void c_simple_speedometer_demo_step(mrbc_vm* vm, mrbc_value* v,
+                                    int argc) {
+  if (argc != 1 || GET_TT_ARG(1) != MRBC_TT_INTEGER) {
+    mrbc_raise(vm, MRBC_CLASS(ArgumentError), "display index required");
+    return;
+  }
+  const int display_index = GET_INT_ARG(1);
+  if (!valid_display_index(display_index)) {
+    mrbc_raise(vm, MRBC_CLASS(ArgumentError),
+               "display_index must be 0 or 1");
+    return;
+  }
+  SET_FLOAT_RETURN(render_simple_speed(
+      display_index, simple_demo_speed(display_index)));
+}
+
+void c_speedometer_set_brightness(mrbc_vm* vm, mrbc_value* v, int argc) {
+  if (argc != 2) {
+    mrbc_raise(vm, MRBC_CLASS(ArgumentError), "wrong number of arguments");
+    return;
+  }
+  if (GET_TT_ARG(1) != MRBC_TT_INTEGER ||
+      GET_TT_ARG(2) != MRBC_TT_INTEGER) {
+    mrbc_raise(vm, MRBC_CLASS(TypeError), "integer argument required");
+    return;
+  }
+  const int display_index = GET_INT_ARG(1);
+  if (!valid_display_index(display_index)) {
+    mrbc_raise(vm, MRBC_CLASS(ArgumentError),
+               "display_index must be 0 or 1");
+    return;
+  }
+  int value = GET_INT_ARG(2);
   if (value < 0) {
     value = 0;
   } else if (value > 255) {
     value = 255;
   }
-  if (!begin_display()) {
+  if (!begin_display(display_index)) {
     mrbc_raise(vm, MRBC_CLASS(RuntimeError),
                "GC9A01 display initialization failed");
     return;
   }
-  if (display_config.pin_bl >= 0) {
-    display.setBrightness(static_cast<uint8_t>(value));
+  if (display_configs[display_index].pin_bl >= 0) {
+    displays[display_index].setBrightness(static_cast<uint8_t>(value));
   }
   SET_INT_RETURN(value);
 }
 
 void c_speedometer_initialized(mrbc_vm* vm, mrbc_value* v, int argc) {
-  (void)argc;
-  SET_BOOL_RETURN(initialized);
+  if (argc != 1 || GET_TT_ARG(1) != MRBC_TT_INTEGER) {
+    mrbc_raise(vm, MRBC_CLASS(ArgumentError), "display index required");
+    return;
+  }
+  const int display_index = GET_INT_ARG(1);
+  if (!valid_display_index(display_index)) {
+    mrbc_raise(vm, MRBC_CLASS(ArgumentError),
+               "display_index must be 0 or 1");
+    return;
+  }
+  SET_BOOL_RETURN(display_states[display_index].initialized);
 }
 
 #endif
@@ -846,33 +1033,33 @@ extern "C" void mrb_picoruby_gc9a01_speedometer_gem_init(mrb_state* mrb) {
   RClass* display_class =
       mrb_define_class(mrb, "GC9A01Display", mrb->object_class);
   mrb_define_class_method(mrb, display_class, "_configure",
-                          mrb_display_configure, MRB_ARGS_REQ(8));
+                          mrb_display_configure, MRB_ARGS_REQ(9));
 
   RClass* speedometer =
       mrb_define_class(mrb, "GC9A01Speedometer", mrb->object_class);
   mrb_define_method(mrb, speedometer, "_init", mrb_speedometer_init,
-                    MRB_ARGS_NONE());
-  mrb_define_method(mrb, speedometer, "render", mrb_speedometer_render,
-                    MRB_ARGS_REQ(2));
-  mrb_define_method(mrb, speedometer, "demo_step", mrb_speedometer_demo_step,
-                    MRB_ARGS_NONE());
-  mrb_define_method(mrb, speedometer, "brightness=", mrb_speedometer_set_brightness,
                     MRB_ARGS_REQ(1));
-  mrb_define_method(mrb, speedometer, "initialized?", mrb_speedometer_initialized,
-                    MRB_ARGS_NONE());
+  mrb_define_method(mrb, speedometer, "_render", mrb_speedometer_render,
+                    MRB_ARGS_REQ(3));
+  mrb_define_method(mrb, speedometer, "_demo_step",
+                    mrb_speedometer_demo_step, MRB_ARGS_REQ(1));
+  mrb_define_method(mrb, speedometer, "_set_brightness",
+                    mrb_speedometer_set_brightness, MRB_ARGS_REQ(2));
+  mrb_define_method(mrb, speedometer, "_initialized",
+                    mrb_speedometer_initialized, MRB_ARGS_REQ(1));
 
   RClass* simple_speedometer =
       mrb_define_class(mrb, "GC9A01SimpleSpeedometer", mrb->object_class);
   mrb_define_method(mrb, simple_speedometer, "_init", mrb_speedometer_init,
-                    MRB_ARGS_NONE());
-  mrb_define_method(mrb, simple_speedometer, "render",
-                    mrb_simple_speedometer_render, MRB_ARGS_REQ(1));
-  mrb_define_method(mrb, simple_speedometer, "demo_step",
-                    mrb_simple_speedometer_demo_step, MRB_ARGS_NONE());
-  mrb_define_method(mrb, simple_speedometer, "brightness=",
-                    mrb_speedometer_set_brightness, MRB_ARGS_REQ(1));
-  mrb_define_method(mrb, simple_speedometer, "initialized?",
-                    mrb_speedometer_initialized, MRB_ARGS_NONE());
+                    MRB_ARGS_REQ(1));
+  mrb_define_method(mrb, simple_speedometer, "_render",
+                    mrb_simple_speedometer_render, MRB_ARGS_REQ(2));
+  mrb_define_method(mrb, simple_speedometer, "_demo_step",
+                    mrb_simple_speedometer_demo_step, MRB_ARGS_REQ(1));
+  mrb_define_method(mrb, simple_speedometer, "_set_brightness",
+                    mrb_speedometer_set_brightness, MRB_ARGS_REQ(2));
+  mrb_define_method(mrb, simple_speedometer, "_initialized",
+                    mrb_speedometer_initialized, MRB_ARGS_REQ(1));
 }
 
 extern "C" void mrb_picoruby_gc9a01_speedometer_gem_final(mrb_state*) {}
@@ -887,23 +1074,23 @@ extern "C" void mrbc_gc9a01_speedometer_init(mrbc_vm* vm) {
   mrbc_class* speedometer =
       mrbc_define_class(vm, "GC9A01Speedometer", mrbc_class_object);
   mrbc_define_method(vm, speedometer, "_init", c_speedometer_init);
-  mrbc_define_method(vm, speedometer, "render", c_speedometer_render);
-  mrbc_define_method(vm, speedometer, "demo_step", c_speedometer_demo_step);
-  mrbc_define_method(vm, speedometer, "brightness=",
+  mrbc_define_method(vm, speedometer, "_render", c_speedometer_render);
+  mrbc_define_method(vm, speedometer, "_demo_step", c_speedometer_demo_step);
+  mrbc_define_method(vm, speedometer, "_set_brightness",
                      c_speedometer_set_brightness);
-  mrbc_define_method(vm, speedometer, "initialized?",
+  mrbc_define_method(vm, speedometer, "_initialized",
                      c_speedometer_initialized);
 
   mrbc_class* simple_speedometer =
       mrbc_define_class(vm, "GC9A01SimpleSpeedometer", mrbc_class_object);
   mrbc_define_method(vm, simple_speedometer, "_init", c_speedometer_init);
-  mrbc_define_method(vm, simple_speedometer, "render",
+  mrbc_define_method(vm, simple_speedometer, "_render",
                      c_simple_speedometer_render);
-  mrbc_define_method(vm, simple_speedometer, "demo_step",
+  mrbc_define_method(vm, simple_speedometer, "_demo_step",
                      c_simple_speedometer_demo_step);
-  mrbc_define_method(vm, simple_speedometer, "brightness=",
+  mrbc_define_method(vm, simple_speedometer, "_set_brightness",
                      c_speedometer_set_brightness);
-  mrbc_define_method(vm, simple_speedometer, "initialized?",
+  mrbc_define_method(vm, simple_speedometer, "_initialized",
                      c_speedometer_initialized);
 }
 
