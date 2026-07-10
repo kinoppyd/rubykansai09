@@ -113,11 +113,11 @@ puts DEVICE_NAME
 puts "target_address"
 puts DEVICE_ADDRESS
 
+display_output = build_display_output
+estimator = BLECycleHost::SpeedEstimator.new(WHEEL_CIRCUMFERENCE_MM, RX_TIMEOUT_MS)
 central = BLECycleHost::UARTCentral.new(DEVICE_NAME, DEVICE_ADDRESS)
 central.debug = DEBUG_BLE
 central.scan_debug = DEBUG_BLE
-estimator = BLECycleHost::SpeedEstimator.new(WHEEL_CIRCUMFERENCE_MM, RX_TIMEOUT_MS)
-display_output = build_display_output
 rx_count = 0
 last_connected = false
 last_status_ms = nil

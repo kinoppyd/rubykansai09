@@ -94,9 +94,10 @@ class BLECycleDisplayPacketTest < Minitest::Test
     meter = FakeMeter.new
     output = BLECycleHost::GC9A01DisplayOutput.new(meter)
 
+    assert_equal [0.0], meter.rendered
     assert_equal true, output.write(23.45, 0)
 
-    assert_equal [23.45], meter.rendered
+    assert_equal [0.0, 23.45], meter.rendered
     assert_equal 1, output.sequence
   end
 

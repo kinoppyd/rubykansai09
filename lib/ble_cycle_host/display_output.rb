@@ -65,6 +65,7 @@ module BLECycleHost
       @meter = meter
       @sequence = 0
       @last_sequence = 0
+      @meter.render(0.0)
     end
 
     def active?
