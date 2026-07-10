@@ -6,6 +6,17 @@ require "ble_cycle_display_packet"
 require "ble_cycle_host/display_output"
 
 class BLECycleDisplayPacketTest < Minitest::Test
+  def test_host_display_status_matches_wire_protocol
+    assert_equal BLECycleDisplayPacket::STATUS_BLE_CONNECTED,
+                 BLECycleHost::DisplayStatus::BLE_CONNECTED
+    assert_equal BLECycleDisplayPacket::STATUS_STALE,
+                 BLECycleHost::DisplayStatus::STALE
+    assert_equal BLECycleDisplayPacket::STATUS_SEQUENCE_GAP,
+                 BLECycleHost::DisplayStatus::SEQUENCE_GAP
+    assert_equal BLECycleDisplayPacket::STATUS_SENSOR_ERROR,
+                 BLECycleHost::DisplayStatus::SENSOR_ERROR
+  end
+
   def test_encode_and_decode
     payload = BLECycleDisplayPacket.bytes(BLECycleDisplayPacket::SIZE)
 

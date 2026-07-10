@@ -47,10 +47,10 @@ def display_due?(now, last)
 end
 
 def display_status(connected, packet, reader)
-  status = connected ? BLECycleDisplayPacket::STATUS_BLE_CONNECTED : 0
-  status |= BLECycleDisplayPacket::STATUS_SEQUENCE_GAP if reader.last_gap != 0
+  status = connected ? BLECycleHost::DisplayStatus::BLE_CONNECTED : 0
+  status |= BLECycleHost::DisplayStatus::SEQUENCE_GAP if reader.last_gap != 0
   if packet && (packet.flags & BLECyclePacket::FLAG_I2C_ERROR) != 0
-    status |= BLECycleDisplayPacket::STATUS_SENSOR_ERROR
+    status |= BLECycleHost::DisplayStatus::SENSOR_ERROR
   end
   status
 end
@@ -151,7 +151,7 @@ central.start do |packet, reader|
       sent_at = write_display(
         display_output,
         estimator.speed_kmh,
-        BLECycleDisplayPacket::STATUS_BLE_CONNECTED | BLECycleDisplayPacket::STATUS_STALE,
+        BLECycleHost::DisplayStatus::BLE_CONNECTED | BLECycleHost::DisplayStatus::STALE,
         now
       )
       last_display_ms = sent_at if sent_at

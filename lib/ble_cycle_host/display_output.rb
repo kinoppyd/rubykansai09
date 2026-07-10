@@ -1,8 +1,13 @@
 # Host-side display outputs for 2-board and 3-board cycle computer layouts.
 
-require "ble_cycle_display_packet"
-
 module BLECycleHost
+  module DisplayStatus
+    BLE_CONNECTED = 1
+    STALE = 2
+    SEQUENCE_GAP = 4
+    SENSOR_ERROR = 8
+  end
+
   class NullDisplayOutput
     def active?
       false
@@ -26,6 +31,7 @@ module BLECycleHost
     attr_reader :last_sequence
 
     def initialize(uart)
+      require "ble_cycle_display_packet"
       @uart = uart
       @payload = BLECycleDisplayPacket.bytes(BLECycleDisplayPacket::SIZE)
       @sequence = 0
