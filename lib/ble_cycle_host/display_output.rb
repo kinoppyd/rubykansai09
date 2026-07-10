@@ -24,6 +24,7 @@ module BLECycleHost
       end
 
       output.write(max_speed_kmh, 0)
+      Machine.delay_ms(40)
       yield if block_given?
 
       speed = max_speed_kmh - step_kmh
