@@ -182,14 +182,16 @@ Add independent cadence estimator
 
 ### 2. Cadence sensor app
 
-- [ ] `r2p2_apps/ble_cycle_cadence_sensor/home/app.rb`を追加する。
-- [ ] 既存sensor appと同じMPU-6050 driver、rotation detector、I2C初期値を使う。
-- [ ] `DEVICE_NAME = "PRCad"`、`NOTIFY_PERIOD_MS = 500`を設定する。
+- [x] `r2p2_apps/ble_cycle_cadence_sensor/home/app.rb`を追加する。
+- [x] 既存sensor appと同じMPU-6050 driver、rotation detector、I2C初期値を使う。
+- [x] `DEVICE_NAME = "PRCad"`、`NOTIFY_PERIOD_MS = 500`を設定する。
 - [ ] fake modeで接続経路を確認してから`USE_MPU = true`へ切り替える。
-- [ ] serial logへ`sensor_role` / `cadence`を出し、speed sensorと識別できるようにする。
-- [ ] cadence専用の`AXIS`、`DIRECTION`、deadbandをapp先頭で調整可能にする。
-- [ ] first packet、I2C error、saturation、dt skippedのflagを既存sensorと揃える。
-- [ ] R2P2で必要な`/home`と`/lib`の配置一覧を確認する。
+- [x] serial logへ`sensor_role` / `cadence`を出し、speed sensorと識別できるようにする。
+- [x] cadence専用の`AXIS`、`DIRECTION`、deadbandをapp先頭で調整可能にする。
+- [x] first packet、I2C error、saturation、dt skippedのflagを既存sensorと揃える。
+- [x] R2P2で必要な`/home`と`/lib`の配置一覧を確認する。
+  - `docs/ble/cadence_sensor_demo.ja.md`に配線、配置、fake/MPU確認手順を記録した。
+- [x] CRubyとPicoRuby `mrbc`でappをcompileできることを確認する。
 - [ ] 単一接続hostまたはBLE scannerで500 ms notificationを確認する。
 - [ ] cadence sensorのBLE addressを記録する。
 
