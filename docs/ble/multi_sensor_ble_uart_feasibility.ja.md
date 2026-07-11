@@ -460,6 +460,37 @@ getterでconnection handleを抽出する。
 
 Speed sensor再接続中もcadenceを更新し、cadence sensor再接続中もspeedを更新する。
 
+### MultiUARTCentralの実装結果
+
+[`MultiUARTCentral`](../../lib/ble_cycle_host/multi_uart_central.rb)は、1個の
+[`MultiUARTTransport`](../../lib/ble_cycle_host/multi_uart_transport.rb)と、Arrayではない
+固定`speed_slot` / `cadence_slot`を所有する。各slotは独立した`FrameReader`、
+`Decoded`、connection/GATT handle、notification countを持つ。
+
+Target addressが設定されているslotはaddress一致を必須にする。同じservice UUIDを持つ
+別roleを誤って選ばないため、address不一致をnameやservice UUIDだけでは補わない。
+Cadence addressが未設定のbring-up時だけ`PRCad` nameをidentity fallbackとして使う。
+Advertising dataにservice UUIDが含まれる場合は、独自service UUIDとの一致も確認する。
+
+状態query APIは次のとおり。
+
+```ruby
+central.speed_ready?
+central.cadence_ready?
+central.ready_count
+central.all_ready?
+central.slot_state(:speed)
+central.slot_state(:cadence)
+```
+
+Notification callbackは`role, packet, reader`の3引数で、`packet`と`reader`はslotごとに
+再利用する。Callback内で必要な値を直ちにestimatorへ渡し、packet object自体を保存しない。
+Notification配送ではpacketごとのHash/Arrayを生成しない。
+
+Synthetic testは、speed/cadenceのどちらが先にadvertiseしても接続を開始できること、
+2回のconnect/discovery/CCCD write、同じTX value handle `8`からの交互notification、
+片側disconnect後の他slot維持とmissing slot scan再開を確認する。
+
 ## Sensor identityとadvertising size
 
 初期実装ではpayload v1を変更せず、hardcodeしたBLE addressでroleを決める。

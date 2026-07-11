@@ -246,20 +246,22 @@ Route BLE notifications by connection
 
 ### 5. MultiUARTCentral
 
-- [ ] 1個の`BLE::UART`を所有する`BLECycleHost::MultiUARTCentral`を追加する。
-- [ ] speed/cadence固定2slotを初期化する。
-- [ ] address優先、name/service UUID補助のscan matchを実装する。
-- [ ] speed接続完了後も接続を維持してcadence scanを再開する。
-- [ ] slot単位のservice/characteristic discoveryを実装する。
-- [ ] slot単位のCCCD subscribeとready stateを実装する。
-- [ ] notificationをconnection handleで正しい`FrameReader`へ渡す。
-- [ ] disconnection completeをconnection handleで正しいslotだけへ適用する。
-- [ ] missing slotだけを再scan/reconnectする。
-- [ ] 2slot ready、1slot ready、0slot readyをqueryできるAPIを用意する。
-- [ ] callbackは`role, packet, reader`を返し、packetごとのHashを返さない。
-- [ ] synthetic eventでscan、2回のconnect、2回のsubscribe、交互notificationをtestする。
-- [ ] 両sensorのTX value handleが同じでも混線しないことをtestする。
-- [ ] 一方のdisconnectが他方のstateをresetしないことをtestする。
+- [x] 1個の`BLE::UART`を所有する`BLECycleHost::MultiUARTCentral`を追加する。
+- [x] speed/cadence固定2slotを初期化する。
+- [x] address優先、name/service UUID補助のscan matchを実装する。
+- [x] speed接続完了後も接続を維持してcadence scanを再開する。
+- [x] slot単位のservice/characteristic discoveryを実装する。
+- [x] slot単位のCCCD subscribeとready stateを実装する。
+- [x] notificationをconnection handleで正しい`FrameReader`へ渡す。
+- [x] disconnection completeをconnection handleで正しいslotだけへ適用する。
+- [x] missing slotだけを再scan/reconnectする。
+- [x] 2slot ready、1slot ready、0slot readyをqueryできるAPIを用意する。
+- [x] callbackは`role, packet, reader`を返し、packetごとのHashを返さない。
+- [x] synthetic eventでscan、2回のconnect、2回のsubscribe、交互notificationをtestする。
+- [x] 両sensorのTX value handleが同じでも混線しないことをtestする。
+- [x] 一方のdisconnectが他方のstateをresetしないことをtestする。
+- [x] cadenceがspeedより先に起動した場合も正しいslotで接続を開始することをtestする。
+- [x] CRubyとPicoRuby `mrbc`でmulti-central sourceをcompileする。
 
 Commit checkpoint:
 
