@@ -7,7 +7,6 @@ module BLECycleHost
     DEFAULT_ZERO_DELTA_STOP_COUNT = 1
 
     attr_reader :speed_kmh
-    attr_reader :cadence_rpm
     attr_reader :wheel_rotations
     attr_reader :last_update_ms
     attr_reader :last_sequence
@@ -24,7 +23,6 @@ module BLECycleHost
       @zero_delta_stop_count = zero_delta_stop_count
       @smoothing_alpha = smoothing_alpha
       @speed_kmh = 0.0
-      @cadence_rpm = 0.0
       @wheel_rotations = 0.0
       @last_update_ms = nil
       @last_sequence = nil
@@ -54,11 +52,9 @@ module BLECycleHost
       seconds = interval / 1000.0
       distance_m = rotations * @circumference_m
       speed = distance_m / seconds * 3.6
-      rpm = rotations * 60.0 / seconds
 
       @wheel_rotations = rotations
       @speed_kmh = smooth(@speed_kmh, absolute(speed))
-      @cadence_rpm = smooth(@cadence_rpm, absolute(rpm))
       true
     end
 
@@ -74,12 +70,11 @@ module BLECycleHost
     end
 
     def stopped?
-      @speed_kmh == 0.0 && @cadence_rpm == 0.0 && @wheel_rotations == 0.0
+      @speed_kmh == 0.0 && @wheel_rotations == 0.0
     end
 
     def stop!
       @speed_kmh = 0.0
-      @cadence_rpm = 0.0
       @wheel_rotations = 0.0
       true
     end

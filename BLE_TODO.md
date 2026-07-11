@@ -164,8 +164,10 @@
 wheel_rotations = delta_angle_mrad / 1000.0 / (2 * PI)
 distance_m = wheel_rotations * wheel_circumference_m
 speed_kmh = abs(distance_m / (interval_ms / 1000.0)) * 3.6
-cadence_rpm = abs(wheel_rotations) * 60_000.0 / interval_ms
 ```
+
+ホイールの回転数はケイデンスとして扱わない。専用ケイデンスセンサを追加するまでは
+ホストのケイデンス値を`0.0 rpm`に固定する。
 
 ## 実装ステップ
 

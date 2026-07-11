@@ -39,15 +39,17 @@ Pico 2 W 1台でBLEホストと2台のGC9A01を動かし、1台目へ速度、2�
 DISPLAY_MODE = :dual_gc9a01
 ```
 
-R2P2へ再配置するRubyファイルは次の2つです。
+R2P2へ再配置するRubyファイルは次の3つです。
 
 ```text
 /home/app.mrb
 /lib/ble_cycle_host/display_output.mrb
+/lib/ble_cycle_host/speed_estimator.mrb
 ```
 
-起動すると両方の画面が0を表示し、速度は0から80 km/h、ケイデンスは0から
-180 rpmまで一度スイープして0へ戻ります。その後BLE scanを開始します。
+起動すると両方の画面が0を表示し、速度だけを0から80 km/hまで一度スイープして
+0へ戻します。専用センサが未接続のため、ケイデンス針は起動中も0のままです。
+その後BLE scanを開始します。
 
 ```text
 display_link
@@ -58,6 +60,7 @@ display_startup_sweep
 done
 ```
 
-BLE frame受信後、速度画面には`estimator.speed_kmh`、ケイデンス画面の針には
-`estimator.cadence_rpm`を渡します。現段階では両方とも同じ回転センサから算出した
-値です。専用ケイデンスセンサを追加するときは、後者の入力元を切り替えます。
+BLE frame受信後、速度画面には`estimator.speed_kmh`を渡します。ホイール回転数を
+ケイデンスとして扱わず、専用ケイデンスセンサを追加するまではケイデンス画面の針へ
+常に`0.0`を渡します。専用センサを追加するときは、速度センサとは独立した入力値へ
+置き換えます。

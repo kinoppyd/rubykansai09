@@ -14,6 +14,7 @@ DEVICE_ADDRESS = "88:A2:9E:0B:A7:DE"
 WHEEL_CIRCUMFERENCE_MM = 2105
 SCAN_STATUS_PERIOD_MS = 5000
 RX_TIMEOUT_MS = 1500
+CADENCE_RPM_UNAVAILABLE = 0.0
 DISPLAY_MODE = :dual_gc9a01 # :none, :uart, :gc9a01, or :dual_gc9a01
 DISPLAY_PERIOD_MS = 100
 DISPLAY_UART_UNIT = :RP2040_UART0
@@ -39,7 +40,7 @@ DISPLAY_CADENCE_PIN_BL = 14
 DISPLAY_CADENCE_SPI_FREQUENCY = 40_000_000
 DISPLAY_CADENCE_BRIGHTNESS = 180
 DISPLAY_STARTUP_SWEEP_MAX_KMH = 80
-DISPLAY_STARTUP_SWEEP_MAX_CADENCE_RPM = 180
+DISPLAY_STARTUP_SWEEP_MAX_CADENCE_RPM = CADENCE_RPM_UNAVAILABLE
 DISPLAY_STARTUP_SWEEP_STEP_KMH = 4
 DISPLAY_STARTUP_SWEEP_FRAME_MS = 20
 DISPLAY_STARTUP_SWEEP_PAUSE_MS = 250
@@ -202,7 +203,7 @@ central.start do |packet, reader|
       sent_at = write_display(
         display_output,
         estimator.speed_kmh,
-        0.0,
+        CADENCE_RPM_UNAVAILABLE,
         BLECycleHost::DisplayStatus::BLE_CONNECTED | BLECycleHost::DisplayStatus::STALE,
         now
       )
@@ -235,7 +236,7 @@ central.start do |packet, reader|
   puts "speed_kmh"
   puts rounded_2(estimator.speed_kmh)
   puts "cadence_rpm"
-  puts rounded_2(estimator.cadence_rpm)
+  puts rounded_2(CADENCE_RPM_UNAVAILABLE)
   puts "reader_gap"
   puts reader.last_gap
   puts "reader_gap_count"
@@ -247,7 +248,7 @@ central.start do |packet, reader|
     sent_at = write_display(
       display_output,
       estimator.speed_kmh,
-      estimator.cadence_rpm,
+      CADENCE_RPM_UNAVAILABLE,
       display_status_value,
       now
     )

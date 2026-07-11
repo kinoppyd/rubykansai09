@@ -14,7 +14,7 @@ class BLECycleSpeedEstimatorTest < Minitest::Test
 
     assert_in_delta 0.5, estimator.wheel_rotations, 0.001
     assert_in_delta 7.57, estimator.speed_kmh, 0.02
-    assert_in_delta 60.0, estimator.cadence_rpm, 0.1
+    refute_respond_to estimator, :cadence_rpm
   end
 
   def test_update_uses_absolute_speed_for_reverse_rotation
@@ -24,7 +24,6 @@ class BLECycleSpeedEstimatorTest < Minitest::Test
     estimator.update(packet)
 
     assert_in_delta 7.57, estimator.speed_kmh, 0.02
-    assert_in_delta 60.0, estimator.cadence_rpm, 0.1
   end
 
   def test_update_stops_on_zero_delta_angle
@@ -37,7 +36,6 @@ class BLECycleSpeedEstimatorTest < Minitest::Test
 
     assert_equal true, estimator.update(stopped)
     assert_equal 0.0, estimator.speed_kmh
-    assert_equal 0.0, estimator.cadence_rpm
   end
 
   def test_update_rejects_zero_interval
@@ -46,7 +44,6 @@ class BLECycleSpeedEstimatorTest < Minitest::Test
 
     assert_equal false, estimator.update(packet)
     assert_equal 0.0, estimator.speed_kmh
-    assert_equal 0.0, estimator.cadence_rpm
   end
 
   def test_tick_stops_after_timeout
