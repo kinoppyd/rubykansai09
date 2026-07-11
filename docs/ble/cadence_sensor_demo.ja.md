@@ -5,7 +5,7 @@
 ## 目的
 
 Raspberry Pi Pico 2 WとMPU-6050をクランク側の専用センサとして使い、
-独自`BLE::UART` serviceから500 ms周期で回転角を通知する。
+独自`BLE::UART` serviceから250 ms周期で回転角を通知する。
 GAP nameは`PRCad`で、packet形式はスピードセンサと同じ
 `BLECyclePacket` v1（20 bytes）を使う。
 
@@ -47,7 +47,7 @@ lib/mpu_6050/rotation_detector.rb
 2. Pico 2 Wへ配置して起動する。
 3. serial logで`PRCad`のaddressを記録する。
 4. 単一接続hostまたはBLE scannerから接続する。
-5. `TX`が約500 ms間隔で増え、2 packet目以降の`delta_mrad`が`3142`に
+5. `TX`が約250 ms間隔で増え、2 packet目以降の`delta_mrad`が`1571`に
    なることを確認する。これは約60 rpm相当の生成値である。
 
 期待する起動ログ:
@@ -283,7 +283,7 @@ cadence_rpm
 
 1. 新sensor UF2 + 既存speed app 1台だけでhostのspeed slotをreadyにする。
 2. Cadence appを`USE_MPU = false`にし、cadence slotと約60 rpm表示を確認する。
-3. 両sensorを接続し、handleが2個あり、各`interval_ms`が450..650 ms程度か確認する。
+3. 両sensorを接続し、handleが2個あり、各`interval_ms`が200..350 ms程度か確認する。
 4. Cadenceを`USE_MPU = true`へ戻し、静止0 rpm、約1回転/秒で約60 rpmを確認する。
 5. Speedだけを再起動し、cadence RXと画面が継続することを確認する。
 6. Cadenceだけを再起動し、speed RXと画面が継続することを確認する。

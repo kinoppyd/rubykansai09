@@ -9,7 +9,7 @@ Raspberry Pi Pico 2 Wを3台使い、次の構成を実現できるか調査し�
 - スピードセンサ: Pico 2 W + MPU-6050
 - ケイデンスセンサ: Pico 2 W + MPU-6050
 - ホスト/表示: Pico 2 W + 2台のGC9A01
-- 各センサの通知周期: 500 ms
+- 各センサの通知周期: 250 ms
 - 通信方式: 独自UUIDの`BLE::UART`
 - 規格方針: CSCS/CSCPは使用しない
 
@@ -23,7 +23,7 @@ GC9A01へ表示できている。今回の焦点は、同じホストが既存�
 ## 結論
 
 Pico 2 WのhardwareとBTstackは、スピードセンサとケイデンスセンサの2接続を
-同時に維持できる可能性が十分にある。500 msごとに20 bytesを2台から受信する
+同時に維持できる可能性が十分にある。250 msごとに20 bytesを2台から受信する
 用途では、BLE帯域も問題にならない。
 
 ただし、現在のPicoRuby `BLE::UART`を2instance生成するだけでは実現できない。
@@ -294,11 +294,11 @@ counterを追加する。
 Application payloadだけを計算すると次のとおり。
 
 ```text
-20 bytes/frame * 2 frames/s * 2 sensors = 80 bytes/s
+20 bytes/frame * 4 frames/s * 2 sensors = 160 bytes/s
 ```
 
 BLE link layer、ATT、HCIのheaderやretransmissionはこの値に含まれない。それでも
-今回のデータ量はBLEの通常の転送能力より十分小さい。500 msの更新周期を維持できない
+今回のデータ量はBLEの通常の転送能力より十分小さい。250 msの更新周期を維持できない
 場合は、帯域よりevent loss、Ruby loop latency、radio scheduling、connection stateの
 不具合を先に疑う。
 
@@ -572,7 +572,7 @@ GC9A01実装はfull framebufferを持たないため、2画面化で大きなfra
 - 2connection分のGATT client contextが正しく生成されるか。
 - Wildcard notification listenerがpinned BTstackで両linkを配送するか。
 - Ruby event queueがscan burst中にcritical eventを失わないか。
-- 2sensorが500 ms周期を長時間維持できるか。
+- 2sensorが250 ms周期を長時間維持できるか。
 - 片側だけのpower cycleと再接続が他方へ影響しないか。
 - BLE + dual GC9A01でNoMemoryErrorが発生しないか。
 
@@ -630,7 +630,7 @@ state(role)
 
 ### 2. Connectionless custom advertising
 
-各sensorが500 msごとにcustom manufacturer dataをadvertiseし、hostが常時scanする。
+各sensorが250 msごとにcustom manufacturer dataをadvertiseし、hostが常時scanする。
 BLE connection、GATT discovery、CCCD、notification listenerが不要になる。
 
 20-byte payloadにmanufacturer dataのoverheadとflagsを加えてもlegacy 31-byte advertisingへ
@@ -667,7 +667,7 @@ Cadence receiverから表示hostへUARTまたはI2Cでrpmを渡す。
 ### 採用しない案
 
 1台のhostがspeed/cadenceへ交互にconnect/disconnectする方式は採用しない。BLE connect、
-GATT discovery、CCCD writeのlatencyと失敗回復が500 ms更新周期に対して大きく、既存接続を
+GATT discovery、CCCD writeのlatencyと失敗回復が250 ms更新周期に対して大きく、既存接続を
 維持する目的にも合わない。
 
 ## Go/No-Go判断
@@ -675,7 +675,7 @@ GATT discovery、CCCD writeのlatencyと失敗回復が500 ms更新周期に対�
 次を満たせば`BLE::UART` multi-central方式を継続する。
 
 - 異なる2個のconnection handleが同時にreadyになる。
-- 両sensorから450..650 ms程度でnotificationを受信できる。
+- 両sensorから200..350 ms程度でnotificationを受信できる。
 - Value handleが同じでもconnection handleで正しくrole分離できる。
 - 一方のpower cycle中も他方の受信が継続する。
 - 30分試験でNoMemoryErrorと継続的なqueue dropがない。

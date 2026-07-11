@@ -112,9 +112,9 @@ TX
 seq
 1
 delta_mrad
-3142
+1571
 interval_ms
-500
+250
 ```
 
 ホスト側:
@@ -157,12 +157,12 @@ count
 seq
 1
 delta_mrad
-3142
+1571
 speed_kmh
 7.57
 ```
 
-`interval_ms` は実際の event loop により 500 ms から多少ずれてよい。
+`interval_ms` は実際の event loop により 250 ms から多少ずれてよい。
 `reader_gap_count` が増え続ける場合は、BLE frame の抜けまたは decode ずれを
 疑う。
 

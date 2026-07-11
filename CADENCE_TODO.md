@@ -1,14 +1,14 @@
 # PicoRuby Dedicated Cadence Sensor TODO
 
-最終更新: 2026-07-11 JST
+最終更新: 2026-07-12 JST
 
 ## 目的
 
 3台の Raspberry Pi Pico 2 W を使い、既存のスピードセンサに加えて専用の
 ケイデンスセンサをホストへ同時接続する。
 
-- スピードセンサ: Pico 2 W + MPU-6050。既存の500 ms周期通知を維持する。
-- ケイデンスセンサ: Pico 2 W + MPU-6050。クランク回転を500 ms周期で通知する。
+- スピードセンサ: Pico 2 W + MPU-6050。250 ms周期で通知する。
+- ケイデンスセンサ: Pico 2 W + MPU-6050。クランク回転を250 ms周期で通知する。
 - ホスト: Pico 2 W。2台のセンサへ同時接続し、速度とケイデンスを独立計算する。
 - 表示: 既存の2台のGC9A01へ速度とケイデンスをそれぞれ表示する。
 - BLE profile: CSCS/CSCPは使用せず、既存の独自`BLE::UART` serviceを継続する。
@@ -25,7 +25,7 @@
   - link map上のheap余裕: `47096` bytesから`46192` bytes。
   - GATT client slot追加: 約144 bytes。
   - HCI connection slot追加: 約760 bytes。
-- [x] 20 bytesを2台から500 msごとに受けてもapplication payloadは約80 bytes/sであり、
+- [x] 20 bytesを2台から250 msごとに受けてもapplication payloadは約160 bytes/sであり、
   BLE帯域は主な制約にならない。
 - [x] 現行`BLE::UART`を2個生成するだけの実装は採用しない。
   - native側のrole、event queue、packet handler、heartbeatは共有されている。
@@ -146,7 +146,7 @@ cadence_rpm = abs(rotations) * 60000.0 / interval_ms
 - `lib/ble_cycle_packet.rb`の20-byte payload v1。
 - `lib/ble_cycle_sensor/uart_peripheral.rb`のperipheral API。
 - `lib/ble_cycle_host/uart_central.rb`の単一接続API。
-- 既存speed sensorの500 ms周期と速度計算。
+- 既存speed sensorの速度計算。
 - CSCS/CSCPを使用しない方針。
 
 ## 実装ステップ
@@ -184,7 +184,7 @@ Add independent cadence estimator
 
 - [x] `r2p2_apps/ble_cycle_cadence_sensor/home/app.rb`を追加する。
 - [x] 既存sensor appと同じMPU-6050 driver、rotation detector、I2C初期値を使う。
-- [x] `DEVICE_NAME = "PRCad"`、`NOTIFY_PERIOD_MS = 500`を設定する。
+- [x] `DEVICE_NAME = "PRCad"`、`NOTIFY_PERIOD_MS = 250`を設定する。
 - [ ] fake modeで接続経路を確認してから`USE_MPU = true`へ切り替える。
 - [x] serial logへ`sensor_role` / `cadence`を出し、speed sensorと識別できるようにする。
 - [x] cadence専用の`AXIS`、`DIRECTION`、deadbandをapp先頭で調整可能にする。
@@ -192,7 +192,7 @@ Add independent cadence estimator
 - [x] R2P2で必要な`/home`と`/lib`の配置一覧を確認する。
   - `docs/ble/cadence_sensor_demo.ja.md`に配線、配置、fake/MPU確認手順を記録した。
 - [x] CRubyとPicoRuby `mrbc`でappをcompileできることを確認する。
-- [ ] 単一接続hostまたはBLE scannerで500 ms notificationを確認する。
+- [ ] 単一接続hostまたはBLE scannerで250 ms notificationを確認する。
 - [ ] cadence sensorのBLE addressを記録する。
 
 Commit checkpoint:
@@ -303,7 +303,7 @@ Display dedicated cadence sensor data
 - [ ] speed real + cadence realで2接続を確認する。
 - [ ] serial logに異なる2個のconnection handleが出ることを確認する。
 - [ ] 両slotで`NUS central ready`相当の状態になることを確認する。
-- [ ] 両sensorが450..650 ms程度の周期で継続更新されることを確認する。
+- [ ] 両sensorが200..350 ms程度の周期で継続更新されることを確認する。
 - [ ] speedだけを再起動し、cadence接続と表示が継続することを確認する。
 - [ ] cadenceだけを再起動し、speed接続と表示が継続することを確認する。
 - [ ] hostを先に起動し、後から2sensorを任意順序で起動して接続できることを確認する。
@@ -324,8 +324,8 @@ Display dedicated cadence sensor data
 - [x] event queue容量増加はdrop原因を確認してから行う。
   - 初期値8を維持し、実機のsequence gap確認前には増やしていない。
 - [ ] radio schedulingが不安定な場合、connection intervalを50..100 ms程度で検証する。
-- [x] 500 ms notification周期は変更せず、connection parameterだけを調整する。
-  - speed/cadence appの`NOTIFY_PERIOD_MS = 500`を維持した。
+- [x] 実機で2接続を確認後、notification周期を250 msへ短縮する。
+  - speed/cadence appの`NOTIFY_PERIOD_MS = 250`へ変更した。
 - [x] 最終ELFのBSS、heap余裕、UF2 sizeを記録する。
   - dual GC9A01 host: BSS `444748`、heap余裕`46180`、UF2 `4690432` bytes。
 
@@ -350,7 +350,7 @@ Display dedicated cadence sensor data
 
 - [x] CSCS/CSCPを使わず、独自`BLE::UART` profileを維持している。
 - [ ] hostに異なる2本のBLE connectionが同時に確立する。
-- [ ] speedとcadenceのnotificationが500 ms目標で混線せず受信される。
+- [ ] speedとcadenceのnotificationが250 ms目標で混線せず受信される。
 - [x] speedは既存sensorだけから計算される。
 - [x] cadenceは専用cadence sensorだけから計算される。
 - [x] cadence未接続またはtimeout時はcadenceだけ0 rpmになる。
@@ -378,7 +378,7 @@ native centralはthin Ruby APIで`role, packet`だけをpoll可能にし、CSCS/
 
 ### 第二fallback: connectionless advertising
 
-CYW43439の2connection scheduling自体が不安定な場合、各sensorが500 msごとにcustom
+CYW43439の2connection scheduling自体が不安定な場合、各sensorが250 msごとにcustom
 manufacturer dataをadvertiseし、hostが常時scanする方式へ切り替える。
 
 - 20-byte payloadへroleとsequenceを含める。
@@ -391,7 +391,7 @@ manufacturer dataをadvertiseし、hostが常時scanする方式へ切り替え�
 ソフトウェア変更を最小化する必要がある場合、cadence専用BLE receiver Picoを追加し、
 既存hostへUART/I2Cでrpmを渡す。各receiverは現行の単一`BLE::UART`接続を維持できる。
 
-500 ms周期を満たしにくい接続先の交互切替方式は採用しない。
+250 ms周期を満たしにくい接続先の交互切替方式は採用しない。
 
 ## 未決事項
 
