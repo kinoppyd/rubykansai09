@@ -164,14 +164,15 @@ cadence_rpm = abs(rotations) * 60000.0 / interval_ms
 
 ### 1. CadenceEstimator
 
-- [ ] `BLECycleHost::CadenceEstimator`を追加する。
-- [ ] `delta_angle_mrad`と`interval_ms`からrpmを計算する。
-- [ ] first packet、interval 0、停止、逆回転、timeoutを実装する。
-- [ ] sequence rollover、gap、重複packetの扱いを決める。
-- [ ] loop中に新しいHash/Arrayを生成しない。
-- [ ] `test/ble_cycle_cadence_estimator_test.rb`を追加する。
-- [ ] 1回転/1000 msが約60 rpmになることをtestする。
-- [ ] speed estimatorからcadence値を取得していないことをtestする。
+- [x] `BLECycleHost::CadenceEstimator`を追加する。
+- [x] `delta_angle_mrad`と`interval_ms`からrpmを計算する。
+- [x] first packet、interval 0、停止、逆回転、timeoutを実装する。
+- [x] sequence rollover、gap、重複packetの扱いを決める。
+  - 重複packetは推定値とtimeoutを更新せず、`duplicate_count`だけを増やす。
+- [x] loop中に新しいHash/Arrayを生成しない。
+- [x] `test/ble_cycle_cadence_estimator_test.rb`を追加する。
+- [x] 1回転/1000 msが約60 rpmになることをtestする。
+- [x] speed estimatorからcadence値を取得していないことをtestする。
 
 Commit checkpoint:
 
