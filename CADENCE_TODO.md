@@ -153,13 +153,14 @@ cadence_rpm = abs(rotations) * 60000.0 / interval_ms
 
 ### 0. Baselineと作業保護
 
-- [ ] `features/cadence_sensor`が最新`main`から分岐していることを確認する。
-- [ ] 作業開始時に`git status --short`を記録する。
-- [ ] 既存の未コミット`r2p2_apps/ble_cycle_sensor/home/app.rb`を読み、上書きしない。
-- [ ] 未追跡`task_cscp.md`をstage/commitしない。
-- [ ] 現行test suiteを実行し、baselineを記録する。
+- [x] `features/cadence_sensor`が最新`main`から分岐していることを確認する。
+- [x] 作業開始時に`git status --short`を記録する。
+- [x] 既存の未コミット`r2p2_apps/ble_cycle_sensor/home/app.rb`を読み、上書きしない。
+- [x] 未追跡`task_cscp.md`をstage/commitしない。
+- [x] 現行test suiteを実行し、baselineを記録する。
+  - 2026-07-11: `60 runs, 232 assertions, 0 failures, 0 errors`。
 - [ ] 現行speed sensor 1台とhostの接続ログを保存する。
-- [ ] 実装用PicoRuby treeとpatch適用確認用clean treeを分ける。
+- [x] 実装用PicoRuby treeとpatch適用確認用clean treeを分ける。
 
 ### 1. CadenceEstimator
 
