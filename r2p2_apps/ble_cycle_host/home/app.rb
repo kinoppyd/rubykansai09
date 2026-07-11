@@ -66,6 +66,10 @@ def display_due?(now, last)
   last.nil? || ((now - last) & 0xffffffff) >= DISPLAY_PERIOD_MS
 end
 
+def rx_timed_out?(now, last)
+  !last.nil? && ((now - last) & 0xffffffff) >= RX_TIMEOUT_MS
+end
+
 def display_status(central, speed_timed_out, cadence_timed_out,
                    speed_sensor_error, cadence_sensor_error)
   status = central.connected? ? BLECycleHost::DisplayStatus::BLE_CONNECTED : 0
@@ -199,6 +203,8 @@ last_status_ms = nil
 last_display_ms = nil
 speed_timed_out = true
 cadence_timed_out = true
+speed_last_rx_ms = nil
+cadence_last_rx_ms = nil
 speed_sensor_error = false
 cadence_sensor_error = false
 
@@ -217,6 +223,7 @@ central.start do |role, packet, reader|
     unless speed_ready
       speed_estimator.stop!
       speed_timed_out = true
+      speed_last_rx_ms = nil
       speed_sensor_error = false
       force_display = true
     end
@@ -234,6 +241,7 @@ central.start do |role, packet, reader|
     unless cadence_ready
       cadence_estimator.stop!
       cadence_timed_out = true
+      cadence_last_rx_ms = nil
       cadence_sensor_error = false
       force_display = true
     end
@@ -257,16 +265,18 @@ central.start do |role, packet, reader|
     end
   end
 
-  if speed_estimator.tick(now)
+  if !speed_timed_out && rx_timed_out?(now, speed_last_rx_ms)
     puts "timeout_role"
     puts "speed"
+    speed_estimator.stop!
     speed_timed_out = true
     force_display = true
   end
 
-  if cadence_estimator.tick(now)
+  if !cadence_timed_out && rx_timed_out?(now, cadence_last_rx_ms)
     puts "timeout_role"
     puts "cadence"
+    cadence_estimator.stop!
     cadence_timed_out = true
     force_display = true
   end
@@ -276,6 +286,7 @@ central.start do |role, packet, reader|
       speed_rx_count += 1
       speed_estimator.update(packet, now)
       speed_timed_out = false
+      speed_last_rx_ms = now
       speed_sensor_error = (packet.flags & BLECyclePacket::FLAG_I2C_ERROR) != 0
       rx_count = speed_rx_count
       slot = central.speed_slot
@@ -283,6 +294,7 @@ central.start do |role, packet, reader|
       cadence_rx_count += 1
       cadence_estimator.update(packet, now)
       cadence_timed_out = false
+      cadence_last_rx_ms = now
       cadence_sensor_error = (packet.flags & BLECyclePacket::FLAG_I2C_ERROR) != 0
       rx_count = cadence_rx_count
       slot = central.cadence_slot
