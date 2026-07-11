@@ -29,6 +29,14 @@ FAKE_DELTA_ANGLE_MRAD = 3142
 FULL_ROTATION_MRAD = 6283
 MAX_CONSECUTIVE_I2C_ERRORS = 3
 
+DEBUG_LED = GPIO.new(25, GPIO::OUT)
+
+def blink(&blk)
+  DEBUG_LED.write(1)
+  blk.call
+  DEBUG_LED.write(0)
+end
+
 if USE_MPU
   require "i2c"
   require "mpu_6050"
@@ -56,9 +64,11 @@ def status_value(sample_count, i2c_error_count)
   (sample_count & 0xff) | ((i2c_error_count & 0xff) << 8)
 end
 
-puts "BLE cycle sensor"
-puts "mode"
-puts(USE_MPU ? "mpu" : "fake")
+blink do
+  puts "BLE cycle sensor"
+  puts "mode"
+  puts(USE_MPU ? "mpu" : "fake")
+end
 
 mpu = nil
 detector = nil
