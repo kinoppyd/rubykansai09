@@ -353,26 +353,25 @@ Total:          904 bytes
 として同じ2行だけを独立させ、host firmwareのbuild treeにだけ適用する。
 speed/cadence sensor用firmwareとpatch適用確認用clean treeは設定値`1`を維持する。
 
-### 実装時のhost UF2 build
+### 最終host UF2 build
 
 2026-07-11にPicoRuby `b0c1c4828b82b267dab9cabf4a372c46c2a1075e`を使い、
 2接続設定を適用した2種類のPico 2 W host firmwareをbuildした。
 
 | Host firmware | text | data | BSS | Heap limitまでの空き |
 | --- | ---: | ---: | ---: | ---: |
-| BLE、GC9A01なし | 2259992 | 0 | 443112 | 48280 bytes |
-| BLE、dual GC9A01 | 2353748 | 0 | 444736 | 46192 bytes |
+| BLE、GC9A01なし | 2260288 | 0 | 443128 | 48264 bytes |
+| BLE、dual GC9A01 | 2354052 | 0 | 444748 | 46180 bytes |
 
 生成物は追跡対象外の`tmp/uf2`へ、用途が分かる名前で複製した。
 
 ```text
-tmp/uf2/R2P2-PICORUBY-PICO2_W-BLE-2CONN-20260711-b0c1c482.uf2
-tmp/uf2/R2P2-PICORUBY-PICO2_W-BLE-2CONN-DUAL-GC9A01-20260711-b0c1c482.uf2
+tmp/uf2/R2P2-PICORUBY-PICO2_W-CYCLE-HOST-2CONN-20260711-b0c1c482.uf2
+tmp/uf2/R2P2-PICORUBY-PICO2_W-CYCLE-HOST-2CONN-DUAL-GC9A01-20260711-b0c1c482.uf2
 ```
 
-この時点のUF2は2接続分のBTstack poolを持つが、後続の全connection notification
-listenerと`MultiUARTCentral`はまだ含まない。2台同時接続の実機検証には、後続stepを
-反映して再buildしたUF2を使う。
+両UF2は2接続分のBTstack poolと全connection notification listenerを含む。
+`MultiUARTCentral`とhost appはR2P2の`/lib`と`/home`へ別途配置する。
 
 ## 推奨multi-central設計
 
@@ -698,7 +697,9 @@ CYW43439の2link scheduling自体が安定しない場合だけ、connectionless
 - [BLE_TODO.md](../../BLE_TODO.md)
 - [CADENCE_TODO.md](../../CADENCE_TODO.md)
 - [BLE::UART custom cycle demo](custom_cycle_uart_demo.ja.md)
+- [Dedicated cadence sensor and multi-central demo](cadence_sensor_demo.ja.md)
 - [Dual GC9A01 cycle host](dual_gc9a01_cycle_host.ja.md)
+- [Cycle host multi UART central](../../lib/ble_cycle_host/multi_uart_central.rb)
 - [Cycle host UART central](../../lib/ble_cycle_host/uart_central.rb)
 - [Cycle host runtime central patch](../../lib/ble_cycle_host/uart_central_patch.rb)
 - [Cycle sensor UART peripheral](../../lib/ble_cycle_sensor/uart_peripheral.rb)

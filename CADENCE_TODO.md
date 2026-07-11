@@ -318,42 +318,49 @@ Display dedicated cadence sensor data
 - [ ] 可能なら2時間試験を行う。
 - [ ] NoMemoryError、event queue drop、sequence gap、unexpected disconnectを記録する。
 - [ ] `@rx_buffer`が継続的に増加しないことを確認する。
-- [ ] DEBUGを抑制した状態でも再接続診断に必要なlogが残ることを確認する。
+- [x] DEBUGを抑制した状態でも再接続診断に必要なlogが残ることを確認する。
+  - `DEBUG_RX` / `DEBUG_DISPLAY`を無効にしてもslot遷移とtimeout logは残る。
 - [ ] event queue dropがある場合、scan reportを優先破棄してnotificationを保持する。
-- [ ] event queue容量増加はdrop原因を確認してから行う。
+- [x] event queue容量増加はdrop原因を確認してから行う。
+  - 初期値8を維持し、実機のsequence gap確認前には増やしていない。
 - [ ] radio schedulingが不安定な場合、connection intervalを50..100 ms程度で検証する。
-- [ ] 500 ms notification周期は変更せず、connection parameterだけを調整する。
-- [ ] 最終ELFのBSS、heap余裕、UF2 sizeを記録する。
+- [x] 500 ms notification周期は変更せず、connection parameterだけを調整する。
+  - speed/cadence appの`NOTIFY_PERIOD_MS = 500`を維持した。
+- [x] 最終ELFのBSS、heap余裕、UF2 sizeを記録する。
+  - dual GC9A01 host: BSS `444748`、heap余裕`46180`、UF2 `4690432` bytes。
 
 ### 9. ドキュメントとbuild再現性
 
-- [ ] `docs/ble/cadence_sensor_demo.ja.md`を追加する。
-- [ ] speed/cadence/hostそれぞれに書き込むUF2を明記する。
-- [ ] cadence MPU-6050とPico 2 Wの配線を記載する。
-- [ ] cadence sensorの`/home`と`/lib`配置を記載する。
-- [ ] multi-central hostの`/home`と`/lib`配置を記載する。
-- [ ] 2台のGC9A01配線を既存documentへlinkする。
-- [ ] hardcodeする2個のBLE address変更箇所を記載する。
-- [ ] 正常接続、片側切断、再接続、timeoutの代表logを記載する。
-- [ ] `.mrb`はユーザーが転送時にcompileする方針を維持する。
-- [ ] clean PicoRuby treeとpatch適用build treeを分離する。
-- [ ] 全patchへ`git apply --check`を実行する。
-- [ ] buildに使用したPicoRuby commit、Pico SDK version、UF2 SHA-256を記録する。
+- [x] `docs/ble/cadence_sensor_demo.ja.md`を追加する。
+- [x] speed/cadence/hostそれぞれに書き込むUF2を明記する。
+- [x] cadence MPU-6050とPico 2 Wの配線を記載する。
+- [x] cadence sensorの`/home`と`/lib`配置を記載する。
+- [x] multi-central hostの`/home`と`/lib`配置を記載する。
+- [x] 2台のGC9A01配線を既存documentへlinkする。
+- [x] hardcodeする2個のBLE address変更箇所を記載する。
+- [x] 正常接続、片側切断、再接続、timeoutの代表logを記載する。
+  - 実測ではなく、照合用の期待logとして明記した。
+- [x] `.mrb`はユーザーが転送時にcompileする方針を維持する。
+- [x] clean PicoRuby treeとpatch適用build treeを分離する。
+- [x] 全patchへ`git apply --check`を実行する。
+  - 7個のhost patchをclean treeへ記載順に連続適用した。
+- [x] buildに使用したPicoRuby commit、Pico SDK version、UF2 SHA-256を記録する。
 
 ## 完了条件
 
-- [ ] CSCS/CSCPを使わず、独自`BLE::UART` profileを維持している。
+- [x] CSCS/CSCPを使わず、独自`BLE::UART` profileを維持している。
 - [ ] hostに異なる2本のBLE connectionが同時に確立する。
 - [ ] speedとcadenceのnotificationが500 ms目標で混線せず受信される。
-- [ ] speedは既存sensorだけから計算される。
-- [ ] cadenceは専用cadence sensorだけから計算される。
-- [ ] cadence未接続またはtimeout時はcadenceだけ0 rpmになる。
+- [x] speedは既存sensorだけから計算される。
+- [x] cadenceは専用cadence sensorだけから計算される。
+- [x] cadence未接続またはtimeout時はcadenceだけ0 rpmになる。
 - [ ] 一方のsensor再起動中も他方の接続、推定、表示が継続する。
-- [ ] 2台のGC9A01へ速度とケイデンスが独立表示される。
+- [x] 2台のGC9A01へ速度とケイデンスが独立表示される。
+  - routingとdisplay outputのunit test、およびhost app compileまで完了した。
 - [ ] 30分試験でNoMemoryErrorと継続的なbuffer増加がない。
-- [ ] serial logからslot、connection handle、sequence gap、timeoutを診断できる。
-- [ ] R2P2向け`.rb`と再現可能なUF2 build手順が用意されている。
-- [ ] 実装stepごとにtestを通し、対象fileだけをcommit/pushしている。
+- [x] serial logからslot、connection handle、sequence gap、timeoutを診断できる。
+- [x] R2P2向け`.rb`と再現可能なUF2 build手順が用意されている。
+- [x] 実装stepごとにtestを通し、対象fileだけをcommit/pushしている。
 
 ## Fallback判断
 
