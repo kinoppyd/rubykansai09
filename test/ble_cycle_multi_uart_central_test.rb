@@ -209,7 +209,7 @@ class BLECycleMultiUARTCentralTest < Minitest::Test
     assert_equal CADENCE_ADDRESS, address_string(@transport.gap_connections[0][0])
   end
 
-  def test_fixed_address_does_not_depend_on_advertised_service_uuid
+  def test_fixed_address_rejects_an_explicit_different_service_uuid
     boot
 
     @central.handle_event(
@@ -220,10 +220,17 @@ class BLECycleMultiUARTCentralTest < Minitest::Test
       )
     )
 
-    assert_equal 1, @transport.gap_connections.length
-    assert_equal :connecting, @central.slot_state(:speed)
+    assert_equal 0, @transport.gap_connections.length
+    assert_equal :missing, @central.slot_state(:speed)
     assert_equal 1, @central.speed_slot.target_report_count
-    assert_equal 0, @central.speed_slot.service_reject_count
+    assert_equal 1, @central.speed_slot.service_reject_count
+  end
+
+  def test_uuid_conversion_is_exactly_16_binary_bytes
+    converted = @central.send(:uuid_to_bin, BLECyclePacket::SERVICE_UUID)
+
+    assert_equal 16, converted.bytesize
+    assert_equal uuid_le(BLECyclePacket::SERVICE_UUID), converted
   end
 
   def test_nonconnectable_target_report_is_counted_but_not_connected

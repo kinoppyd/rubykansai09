@@ -93,11 +93,11 @@ module BLECycleHost
                    transport: nil)
       @speed_slot = Slot.new(:speed, speed_name, speed_address)
       @cadence_slot = Slot.new(:cadence, cadence_name, cadence_address)
+      @uart = transport || build_transport
       @service_uuid_bin = uuid_to_bin(BLECyclePacket::SERVICE_UUID)
       @rx_uuid_bin = uuid_to_bin(BLECyclePacket::RX_UUID)
       @tx_uuid_bin = uuid_to_bin(BLECyclePacket::TX_UUID)
       @notification_event = NotificationEvent.new
-      @uart = transport || build_transport
       @uart.event_sink = self if @uart.respond_to?(:event_sink=)
       @debug = false
       @hci_ready = false
@@ -253,7 +253,7 @@ module BLECycleHost
           log_rejected_target(slot, report, :nonconnectable)
           next
         end
-        unless service_acceptable?(report, slot)
+        unless service_acceptable?(report)
           slot.service_reject_count += 1
           log_rejected_target(slot, report, :service_mismatch)
           next
@@ -282,11 +282,7 @@ module BLECycleHost
       end
     end
 
-    def service_acceptable?(report, slot)
-      # A fixed address is the pairing identity. GATT discovery validates the
-      # custom service after connection, even if this advertisement is sparse.
-      return true if slot.address_configured?
-
+    def service_acceptable?(report)
       service_data = report.reports[:complete_list_128_bit_service_class_uuids] ||
                      report.reports[:incomplete_list_128_bit_service_class_uuids]
       service_data.nil? || service_data.include?(@service_uuid_bin)
@@ -523,7 +519,7 @@ module BLECycleHost
       out = String.new
       i = hex.length - 2
       while 0 <= i
-        out << hex.byteslice(i, 2).to_i(16)
+        out << [hex.byteslice(i, 2).to_i(16)].pack("C")
         i -= 2
       end
       out
