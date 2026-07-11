@@ -209,6 +209,36 @@ class BLECycleMultiUARTCentralTest < Minitest::Test
     assert_equal CADENCE_ADDRESS, address_string(@transport.gap_connections[0][0])
   end
 
+  def test_fixed_address_does_not_depend_on_advertised_service_uuid
+    boot
+
+    @central.handle_event(
+      advertising_event(
+        SPEED_ADDRESS,
+        "unrelated",
+        service_uuid: "0000180f-0000-1000-8000-00805f9b34fb"
+      )
+    )
+
+    assert_equal 1, @transport.gap_connections.length
+    assert_equal :connecting, @central.slot_state(:speed)
+    assert_equal 1, @central.speed_slot.target_report_count
+    assert_equal 0, @central.speed_slot.service_reject_count
+  end
+
+  def test_nonconnectable_target_report_is_counted_but_not_connected
+    boot
+
+    @central.handle_event(
+      advertising_event(SPEED_ADDRESS, "PRCycle", event_type: 0x04)
+    )
+
+    assert_equal 0, @transport.gap_connections.length
+    assert_equal :missing, @central.slot_state(:speed)
+    assert_equal 1, @central.speed_slot.target_report_count
+    assert_equal 1, @central.speed_slot.nonconnectable_report_count
+  end
+
   def test_failed_connect_command_resets_pending_slot
     boot
     @central.handle_event(advertising_event(SPEED_ADDRESS, "PRCycle"))
@@ -241,12 +271,13 @@ class BLECycleMultiUARTCentralTest < Minitest::Test
     [0x60, 1, 2].pack("C*")
   end
 
-  def advertising_event(address, name)
+  def advertising_event(address, name, event_type: 0x00,
+                        service_uuid: BLECyclePacket::SERVICE_UUID)
     data = ad_structure(0x01, "\x06")
     data << ad_structure(0x09, name)
-    data << ad_structure(0x07, uuid_le(BLECyclePacket::SERVICE_UUID))
+    data << ad_structure(0x07, uuid_le(service_uuid))
     address_bytes = address.split(":").map { |part| part.to_i(16) }.reverse
-    params = [0x02, 0x01, 0x00, 0x00].pack("C*")
+    params = [0x02, 0x01, event_type, 0x00].pack("C*")
     params << address_bytes.pack("C*")
     params << [data.bytesize].pack("C")
     params << data

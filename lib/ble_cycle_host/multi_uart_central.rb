@@ -40,6 +40,9 @@ module BLECycleHost
       attr_accessor :tx_handle
       attr_accessor :cccd_handle
       attr_accessor :notification_count
+      attr_accessor :target_report_count
+      attr_accessor :nonconnectable_report_count
+      attr_accessor :service_reject_count
 
       def initialize(role, target_name, target_address)
         @role = role
@@ -47,6 +50,9 @@ module BLECycleHost
         @target_address = target_address
         @reader = BLECyclePacket::FrameReader.new
         @packet = BLECyclePacket::Decoded.new
+        @target_report_count = 0
+        @nonconnectable_report_count = 0
+        @service_reject_count = 0
         reset
       end
 
@@ -236,36 +242,77 @@ module BLECycleHost
 
       AdvertisingReport.each(event_packet) do |report|
         @scan_report_count += 1
-        next unless report.connectable?
-        slot = matching_missing_slot(report)
+        log_scan_target_counts if (@scan_report_count % 500) == 0
+
+        slot = identity_matching_missing_slot(report)
         next unless slot
+        slot.target_report_count += 1
+
+        unless report.connectable?
+          slot.nonconnectable_report_count += 1
+          log_rejected_target(slot, report, :nonconnectable)
+          next
+        end
+        unless service_acceptable?(report, slot)
+          slot.service_reject_count += 1
+          log_rejected_target(slot, report, :service_mismatch)
+          next
+        end
 
         connect_slot(slot, report)
         return
       end
     end
 
-    def matching_missing_slot(report)
-      if @speed_slot.missing? && report_matches_slot?(report, @speed_slot)
+    def identity_matching_missing_slot(report)
+      if @speed_slot.missing? && identity_matches_slot?(report, @speed_slot)
         return @speed_slot
       end
-      if @cadence_slot.missing? && report_matches_slot?(report, @cadence_slot)
+      if @cadence_slot.missing? && identity_matches_slot?(report, @cadence_slot)
         return @cadence_slot
       end
       nil
     end
 
-    def report_matches_slot?(report, slot)
-      identity_match = if slot.address_configured?
-                         report.address_include?(slot.target_address)
-                       else
-                         report.name_include?(slot.target_name)
-                       end
-      return false unless identity_match
+    def identity_matches_slot?(report, slot)
+      if slot.address_configured?
+        report.address_include?(slot.target_address)
+      else
+        report.name_include?(slot.target_name)
+      end
+    end
+
+    def service_acceptable?(report, slot)
+      # A fixed address is the pairing identity. GATT discovery validates the
+      # custom service after connection, even if this advertisement is sparse.
+      return true if slot.address_configured?
 
       service_data = report.reports[:complete_list_128_bit_service_class_uuids] ||
                      report.reports[:incomplete_list_128_bit_service_class_uuids]
       service_data.nil? || service_data.include?(@service_uuid_bin)
+    end
+
+    def log_scan_target_counts
+      return unless @debug
+      log "scan_target_counts"
+      log "speed", @speed_slot.target_report_count
+      log "cadence", @cadence_slot.target_report_count
+    end
+
+    def log_rejected_target(slot, report, reason)
+      count = if reason == :nonconnectable
+                slot.nonconnectable_report_count
+              else
+                slot.service_reject_count
+              end
+      return if count > 3
+
+      log "target_report_rejected"
+      log "role", slot.role
+      log "reason", reason
+      log "addr", report.address_string
+      log "event_type", report.event_type
+      log "data_len", report.data_length
     end
 
     def connect_slot(slot, report)
