@@ -203,15 +203,18 @@ Add MPU-6050 cadence sensor app
 
 ### 3. Host firmwareの2接続設定
 
-- [ ] clean PicoRuby checkoutに適用できる`picoruby-ble-two-connections.patch`を追加する。
-- [ ] host firmwareだけ`MAX_NR_HCI_CONNECTIONS 2`へ変更する。
-- [ ] host firmwareだけ`MAX_NR_GATT_CLIENTS 2`へ変更する。
-- [ ] sensor firmwareは両方とも設定値`1`を維持する。
-- [ ] `MAX_NR_CONTROLLER_ACL_BUFFERS 3`とevent queue容量は初期値を維持する。
-- [ ] GC9A01なしhost UF2をbuildする。
-- [ ] BLE + dual GC9A01 host UF2をbuildする。
-- [ ] ELFのtext/data/BSSとheap上限をbaselineと比較する。
-- [ ] clean treeへ`git apply --check`が成功することを確認する。
+- [x] clean PicoRuby checkoutに適用できる`picoruby-ble-two-connections.patch`を追加する。
+- [x] host firmwareだけ`MAX_NR_HCI_CONNECTIONS 2`へ変更する。
+- [x] host firmwareだけ`MAX_NR_GATT_CLIENTS 2`へ変更する。
+- [x] sensor firmwareは両方とも設定値`1`を維持する。
+- [x] `MAX_NR_CONTROLLER_ACL_BUFFERS 3`とevent queue容量は初期値を維持する。
+- [x] GC9A01なしhost UF2をbuildする。
+  - BSS `443112` bytes、heap limitまで`48280` bytes。
+- [x] BLE + dual GC9A01 host UF2をbuildする。
+  - BSS `444736` bytes、heap limitまで`46192` bytes。
+- [x] ELFのtext/data/BSSとheap上限をbaselineと比較する。
+  - 同じ統合構成の1接続版から2接続版へのBSS増加は`904` bytes。
+- [x] clean treeへ`git apply --check`が成功することを確認する。
 
 Commit checkpoint:
 
