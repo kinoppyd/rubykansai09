@@ -1,20 +1,25 @@
 # BLE cycle host app for R2P2/PicoRuby on Raspberry Pi Pico 2 W.
-# It receives custom BLE::UART frames and prints decoded speed values.
+# It receives dedicated speed/cadence BLE::UART sensors and drives two meters.
 
 require "machine"
 require "ble_cycle_packet"
-require "ble_cycle_host/uart_central"
+require "ble_cycle_host/multi_uart_central"
 require "ble_cycle_host/speed_estimator"
+require "ble_cycle_host/cadence_estimator"
 require "ble_cycle_host/display_output"
 
 DEBUG_BLE = true
+DEBUG_RX = true
+DEBUG_STATUS = true
 DEBUG_DISPLAY = true
-DEVICE_NAME = "PRCycle"
-DEVICE_ADDRESS = "88:A2:9E:0B:A7:DE"
+SPEED_DEVICE_NAME = "PRCycle"
+SPEED_DEVICE_ADDRESS = "88:A2:9E:0B:A7:DE"
+CADENCE_DEVICE_NAME = "PRCad"
+# Set the PRCad address after bring-up. nil uses the short GAP name temporarily.
+CADENCE_DEVICE_ADDRESS = nil
 WHEEL_CIRCUMFERENCE_MM = 2105
 SCAN_STATUS_PERIOD_MS = 5000
 RX_TIMEOUT_MS = 1500
-CADENCE_RPM_UNAVAILABLE = 0.0
 DISPLAY_MODE = :dual_gc9a01 # :none, :uart, :gc9a01, or :dual_gc9a01
 DISPLAY_PERIOD_MS = 100
 DISPLAY_UART_UNIT = :RP2040_UART0
@@ -40,7 +45,7 @@ DISPLAY_CADENCE_PIN_BL = 14
 DISPLAY_CADENCE_SPI_FREQUENCY = 40_000_000
 DISPLAY_CADENCE_BRIGHTNESS = 180
 DISPLAY_STARTUP_SWEEP_MAX_KMH = 80
-DISPLAY_STARTUP_SWEEP_MAX_CADENCE_RPM = CADENCE_RPM_UNAVAILABLE
+DISPLAY_STARTUP_SWEEP_MAX_CADENCE_RPM = 120
 DISPLAY_STARTUP_SWEEP_STEP_KMH = 4
 DISPLAY_STARTUP_SWEEP_FRAME_MS = 20
 DISPLAY_STARTUP_SWEEP_PAUSE_MS = 250
@@ -61,10 +66,17 @@ def display_due?(now, last)
   last.nil? || ((now - last) & 0xffffffff) >= DISPLAY_PERIOD_MS
 end
 
-def display_status(connected, packet, reader)
-  status = connected ? BLECycleHost::DisplayStatus::BLE_CONNECTED : 0
-  status |= BLECycleHost::DisplayStatus::SEQUENCE_GAP if reader.last_gap != 0
-  if packet && (packet.flags & BLECyclePacket::FLAG_I2C_ERROR) != 0
+def display_status(central, speed_timed_out, cadence_timed_out,
+                   speed_sensor_error, cadence_sensor_error)
+  status = central.connected? ? BLECycleHost::DisplayStatus::BLE_CONNECTED : 0
+  if speed_timed_out || cadence_timed_out
+    status |= BLECycleHost::DisplayStatus::STALE
+  end
+  if central.speed_slot.reader.last_gap != 0 ||
+     central.cadence_slot.reader.last_gap != 0
+    status |= BLECycleHost::DisplayStatus::SEQUENCE_GAP
+  end
+  if speed_sensor_error || cadence_sensor_error
     status |= BLECycleHost::DisplayStatus::SENSOR_ERROR
   end
   status
@@ -159,97 +171,174 @@ end
 puts "BLE cycle host"
 puts "wheel_circumference_mm"
 puts WHEEL_CIRCUMFERENCE_MM
-puts "target_name"
-puts DEVICE_NAME
-puts "target_address"
-puts DEVICE_ADDRESS
+puts "speed_target_name"
+puts SPEED_DEVICE_NAME
+puts "speed_target_address"
+puts SPEED_DEVICE_ADDRESS
+puts "cadence_target_name"
+puts CADENCE_DEVICE_NAME
+puts "cadence_target_address"
+puts(CADENCE_DEVICE_ADDRESS || "name_fallback")
 
 display_output = build_display_output
 run_display_startup_sweep(display_output)
-estimator = BLECycleHost::SpeedEstimator.new(WHEEL_CIRCUMFERENCE_MM, RX_TIMEOUT_MS)
-central = BLECycleHost::UARTCentral.new(DEVICE_NAME, DEVICE_ADDRESS)
+speed_estimator = BLECycleHost::SpeedEstimator.new(WHEEL_CIRCUMFERENCE_MM, RX_TIMEOUT_MS)
+cadence_estimator = BLECycleHost::CadenceEstimator.new(RX_TIMEOUT_MS)
+central = BLECycleHost::MultiUARTCentral.new(
+  speed_address: SPEED_DEVICE_ADDRESS,
+  cadence_address: CADENCE_DEVICE_ADDRESS,
+  speed_name: SPEED_DEVICE_NAME,
+  cadence_name: CADENCE_DEVICE_NAME
+)
 central.debug = DEBUG_BLE
-central.scan_debug = DEBUG_BLE
-rx_count = 0
-last_connected = false
+speed_rx_count = 0
+cadence_rx_count = 0
+last_speed_ready = false
+last_cadence_ready = false
 last_status_ms = nil
 last_display_ms = nil
+speed_timed_out = true
+cadence_timed_out = true
+speed_sensor_error = false
+cadence_sensor_error = false
 
-central.start do |packet, reader|
+central.start do |role, packet, reader|
   now = now_ms
-  connected = central.connected?
-  if connected != last_connected
-    puts "ble_connected"
-    puts(connected ? 1 : 0)
-    last_connected = connected
+  force_display = false
+
+  speed_ready = central.speed_ready?
+  if speed_ready != last_speed_ready
+    puts "ble_slot"
+    puts "speed"
+    puts "slot_state"
+    puts central.slot_state(:speed)
+    puts "connection_handle"
+    puts(central.speed_slot.connection_handle || -1)
+    unless speed_ready
+      speed_estimator.stop!
+      speed_timed_out = true
+      speed_sensor_error = false
+      force_display = true
+    end
+    last_speed_ready = speed_ready
   end
 
-  if !connected
+  cadence_ready = central.cadence_ready?
+  if cadence_ready != last_cadence_ready
+    puts "ble_slot"
+    puts "cadence"
+    puts "slot_state"
+    puts central.slot_state(:cadence)
+    puts "connection_handle"
+    puts(central.cadence_slot.connection_handle || -1)
+    unless cadence_ready
+      cadence_estimator.stop!
+      cadence_timed_out = true
+      cadence_sensor_error = false
+      force_display = true
+    end
+    last_cadence_ready = cadence_ready
+  end
+
+  if DEBUG_STATUS && !central.all_ready?
     elapsed = last_status_ms ? ((now - last_status_ms) & 0xffffffff) : SCAN_STATUS_PERIOD_MS
     if elapsed >= SCAN_STATUS_PERIOD_MS
       puts "scan_state"
       puts central.state
       puts "scan_reports"
-      puts central.scan_reports
+      puts central.scan_report_count
+      puts "ready_count"
+      puts central.ready_count
+      puts "speed_state"
+      puts central.slot_state(:speed)
+      puts "cadence_state"
+      puts central.slot_state(:cadence)
       last_status_ms = now
     end
   end
 
-  unless packet
-    if connected && estimator.tick(now)
-      puts "speed_timeout"
-      puts "speed_kmh"
-      puts rounded_2(estimator.speed_kmh)
-      sent_at = write_display(
-        display_output,
-        estimator.speed_kmh,
-        CADENCE_RPM_UNAVAILABLE,
-        BLECycleHost::DisplayStatus::BLE_CONNECTED | BLECycleHost::DisplayStatus::STALE,
-        now
-      )
-      last_display_ms = sent_at if sent_at
-    end
-    next
+  if speed_estimator.tick(now)
+    puts "timeout_role"
+    puts "speed"
+    speed_timed_out = true
+    force_display = true
   end
 
-  rx_count += 1
-  estimator.update(packet, now)
-  display_status_value = display_status(connected, packet, reader)
+  if cadence_estimator.tick(now)
+    puts "timeout_role"
+    puts "cadence"
+    cadence_timed_out = true
+    force_display = true
+  end
 
-  puts "RX"
-  puts "count"
-  puts rx_count
-  puts "seq"
-  puts packet.sequence
-  puts "sensor_time_ms"
-  puts packet.sensor_time_ms
-  puts "total_rev"
-  puts packet.total_revolutions
-  puts "delta_mrad"
-  puts packet.delta_angle_mrad
-  puts "interval_ms"
-  puts packet.interval_ms
-  puts "flags"
-  puts packet.flags
-  puts "status"
-  puts packet.status
-  puts "speed_kmh"
-  puts rounded_2(estimator.speed_kmh)
-  puts "cadence_rpm"
-  puts rounded_2(CADENCE_RPM_UNAVAILABLE)
-  puts "reader_gap"
-  puts reader.last_gap
-  puts "reader_gap_count"
-  puts reader.gap_count
-  puts "reader_dropped"
-  puts reader.dropped_bytes
+  if packet
+    if role == :speed
+      speed_rx_count += 1
+      speed_estimator.update(packet, now)
+      speed_timed_out = false
+      speed_sensor_error = (packet.flags & BLECyclePacket::FLAG_I2C_ERROR) != 0
+      rx_count = speed_rx_count
+      slot = central.speed_slot
+    elsif role == :cadence
+      cadence_rx_count += 1
+      cadence_estimator.update(packet, now)
+      cadence_timed_out = false
+      cadence_sensor_error = (packet.flags & BLECyclePacket::FLAG_I2C_ERROR) != 0
+      rx_count = cadence_rx_count
+      slot = central.cadence_slot
+    end
 
-  if display_due?(now, last_display_ms)
+    if DEBUG_RX && slot
+      puts "RX"
+      puts "role"
+      puts role
+      puts "count"
+      puts rx_count
+      puts "connection_handle"
+      puts(slot.connection_handle || -1)
+      puts "slot_state"
+      puts slot.state
+      puts "seq"
+      puts packet.sequence
+      puts "sensor_time_ms"
+      puts packet.sensor_time_ms
+      puts "total_rev"
+      puts packet.total_revolutions
+      puts "delta_mrad"
+      puts packet.delta_angle_mrad
+      puts "interval_ms"
+      puts packet.interval_ms
+      puts "flags"
+      puts packet.flags
+      puts "status"
+      puts packet.status
+      puts "speed_kmh"
+      puts rounded_2(speed_estimator.speed_kmh)
+      puts "cadence_rpm"
+      puts rounded_2(cadence_estimator.cadence_rpm)
+      puts "reader_gap"
+      puts reader.last_gap
+      puts "reader_gap_count"
+      puts reader.gap_count
+      puts "reader_dropped"
+      puts reader.dropped_bytes
+    end
+  end
+
+  if (packet || force_display) &&
+     (force_display || display_due?(now, last_display_ms))
+    status = display_status(
+      central,
+      speed_timed_out,
+      cadence_timed_out,
+      speed_sensor_error,
+      cadence_sensor_error
+    )
     sent_at = write_display(
       display_output,
-      estimator.speed_kmh,
-      CADENCE_RPM_UNAVAILABLE,
-      display_status_value,
+      speed_estimator.speed_kmh,
+      cadence_estimator.cadence_rpm,
+      status,
       now
     )
     last_display_ms = sent_at if sent_at

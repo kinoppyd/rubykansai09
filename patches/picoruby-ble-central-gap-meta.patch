@@ -1,16 +1,16 @@
 diff --git a/mrbgems/picoruby-ble/ports/rp2040/ble.c b/mrbgems/picoruby-ble/ports/rp2040/ble.c
-index dd7b1f27..e9737247 100644
+index d0a28e50..41178b12 100644
 --- a/mrbgems/picoruby-ble/ports/rp2040/ble.c
 +++ b/mrbgems/picoruby-ble/ports/rp2040/ble.c
-@@ -12,6 +12,7 @@ static enum BLE_role_t role = BLE_ROLE_NONE;
- static btstack_packet_callback_registration_t ble_hci_event_callback_registration;
- static btstack_packet_callback_registration_t sm_event_callback_registration;
- static btstack_timer_source_t heartbeat;
+@@ -18,6 +18,7 @@ static gatt_client_notification_t notification_listener;
+ static gatt_client_characteristic_t notification_characteristic;
+ static gatt_client_notification_t all_notification_listener;
+ static bool all_notification_listener_registered = false;
 +static bool central_hci_working = false;
- 
+
  static uint16_t
  att_read_callback(hci_con_handle_t connection_handle, uint16_t att_handle, uint16_t offset, uint8_t *buffer, uint16_t buffer_size)
-@@ -66,8 +67,19 @@ packet_handler(uint8_t packet_type, uint16_t channel, uint8_t *packet, uint16_t
+@@ -78,7 +79,18 @@ packet_handler(uint8_t packet_type, uint16_t channel, uint8_t *packet, uint16_t
      case BLE_ROLE_CENTRAL:
        switch (hci_event_packet_get_type(packet)) {
          case BTSTACK_EVENT_STATE:

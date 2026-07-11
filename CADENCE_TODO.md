@@ -271,18 +271,22 @@ Add two-slot BLE UART central
 
 ### 6. Hostと2画面表示の統合
 
-- [ ] host appへspeed/cadence address定数を追加する。
-- [ ] 単一`UARTCentral`を`MultiUARTCentral`へ置き換える。
-- [ ] speed packetだけを`SpeedEstimator`へ渡す。
-- [ ] cadence packetだけを`CadenceEstimator`へ渡す。
-- [ ] 速度とケイデンスのtimeoutを独立してtickする。
-- [ ] speed切断中もcadence表示を更新する。
-- [ ] cadence切断中もspeed表示を更新し、cadenceだけ0へ戻す。
-- [ ] `CADENCE_RPM_UNAVAILABLE`固定値を有効なcadence推定値へ置き換える。
-- [ ] speed GC9A01へ`speed_kmh`を渡す。
-- [ ] cadence GC9A01へ`render(speed_kmh, cadence_rpm)`を渡す。
-- [ ] serial logへrole、connection handle、slot state、sequence、gap、timeoutを出す。
-- [ ] 通常時の高頻度debug logをcompile/app定数で抑制できるようにする。
+- [x] host appへspeed/cadence address定数を追加する。
+  - 実アドレス確認前のcadenceは`PRCad` name fallbackを使う。
+- [x] 単一`UARTCentral`を`MultiUARTCentral`へ置き換える。
+- [x] speed packetだけを`SpeedEstimator`へ渡す。
+- [x] cadence packetだけを`CadenceEstimator`へ渡す。
+- [x] 速度とケイデンスのtimeoutを独立してtickする。
+- [x] speed切断中もcadence表示を更新する。
+- [x] cadence切断中もspeed表示を更新し、cadenceだけ0へ戻す。
+- [x] `CADENCE_RPM_UNAVAILABLE`固定値を有効なcadence推定値へ置き換える。
+- [x] speed GC9A01へ`speed_kmh`を渡す。
+- [x] cadence GC9A01へ`render(speed_kmh, cadence_rpm)`を渡す。
+- [x] serial logへrole、connection handle、slot state、sequence、gap、timeoutを出す。
+- [x] 通常時の高頻度debug logをcompile/app定数で抑制できるようにする。
+  - `DEBUG_BLE`、`DEBUG_RX`、`DEBUG_STATUS`、`DEBUG_DISPLAY`を独立設定する。
+- [x] Host appをCRubyとPicoRuby `mrbc`でcompileする。
+- [x] clean PicoRuby treeへhost patch 7個を記載順に適用できることを確認する。
 
 Commit checkpoint:
 
