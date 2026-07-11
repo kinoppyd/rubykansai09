@@ -15,14 +15,38 @@
 # existing application loop when sensor acquisition must run in the same task.
 
 class GC9A01Display
+  PRIMARY = 0
+  SECONDARY = 1
+
   def self.configure(spi_host, sclk, mosi, cs, dc, rst, bl, frequency)
-    _configure(spi_host, sclk, mosi, cs, dc, rst, bl, frequency)
+    _configure(PRIMARY, spi_host, sclk, mosi, cs, dc, rst, bl, frequency)
+  end
+
+  def self.configure_secondary(spi_host, sclk, mosi, cs, dc, rst, bl, frequency)
+    _configure(SECONDARY, spi_host, sclk, mosi, cs, dc, rst, bl, frequency)
   end
 end
 
 class GC9A01Speedometer
-  def initialize
-    _init
+  def initialize(display_index = GC9A01Display::PRIMARY)
+    @display_index = display_index
+    _init(@display_index)
+  end
+
+  def render(speed_kmh, cadence_rpm)
+    _render(@display_index, speed_kmh, cadence_rpm)
+  end
+
+  def demo_step
+    _demo_step(@display_index)
+  end
+
+  def brightness=(value)
+    _set_brightness(@display_index, value)
+  end
+
+  def initialized?
+    _initialized(@display_index)
   end
 
   def demo(frame_ms = 33)
@@ -43,8 +67,25 @@ end
 #   meter.demo
 
 class GC9A01SimpleSpeedometer
-  def initialize
-    _init
+  def initialize(display_index = GC9A01Display::PRIMARY)
+    @display_index = display_index
+    _init(@display_index)
+  end
+
+  def render(speed_kmh)
+    _render(@display_index, speed_kmh)
+  end
+
+  def demo_step
+    _demo_step(@display_index)
+  end
+
+  def brightness=(value)
+    _set_brightness(@display_index, value)
+  end
+
+  def initialized?
+    _initialized(@display_index)
   end
 
   def demo(frame_ms = 33)

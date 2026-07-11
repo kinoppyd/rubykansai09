@@ -1,0 +1,32 @@
+diff --git a/mrbgems/picoruby-ble/ports/rp2040/ble.c b/mrbgems/picoruby-ble/ports/rp2040/ble.c
+index dd7b1f27..e9737247 100644
+--- a/mrbgems/picoruby-ble/ports/rp2040/ble.c
++++ b/mrbgems/picoruby-ble/ports/rp2040/ble.c
+@@ -12,6 +12,7 @@ static enum BLE_role_t role = BLE_ROLE_NONE;
+ static btstack_packet_callback_registration_t ble_hci_event_callback_registration;
+ static btstack_packet_callback_registration_t sm_event_callback_registration;
+ static btstack_timer_source_t heartbeat;
++static bool central_hci_working = false;
+ 
+ static uint16_t
+ att_read_callback(hci_con_handle_t connection_handle, uint16_t att_handle, uint16_t offset, uint8_t *buffer, uint16_t buffer_size)
+@@ -66,8 +67,19 @@ packet_handler(uint8_t packet_type, uint16_t channel, uint8_t *packet, uint16_t
+     case BLE_ROLE_CENTRAL:
+       switch (hci_event_packet_get_type(packet)) {
+         case BTSTACK_EVENT_STATE:
++          central_hci_working = (btstack_event_state_get_state(packet) == HCI_STATE_WORKING);
++          BLE_push_event(packet, size);
++          break;
++        case HCI_EVENT_COMMAND_COMPLETE:
++        case HCI_EVENT_COMMAND_STATUS:
++          if (central_hci_working) {
++            BLE_push_event(packet, size);
++          }
++          break;
++        case HCI_EVENT_DISCONNECTION_COMPLETE:
+         case HCI_EVENT_LE_META:
++        case HCI_EVENT_META_GAP:
+         case GAP_EVENT_ADVERTISING_REPORT:
+         case GATT_EVENT_QUERY_COMPLETE:
+         case GATT_EVENT_SERVICE_QUERY_RESULT:
+         case GATT_EVENT_CHARACTERISTIC_QUERY_RESULT:

@@ -1,0 +1,99 @@
+# Usage:
+#   ruby -Ilib test/ble_cycle_speed_estimator_test.rb
+
+require "minitest/autorun"
+require "ble_cycle_packet"
+require "ble_cycle_host/speed_estimator"
+
+class BLECycleSpeedEstimatorTest < Minitest::Test
+  def test_update_calculates_speed_from_angle_delta
+    packet = packet_with(3_142, 500)
+    estimator = BLECycleHost::SpeedEstimator.new(2105)
+
+    assert_equal true, estimator.update(packet)
+
+    assert_in_delta 0.5, estimator.wheel_rotations, 0.001
+    assert_in_delta 7.57, estimator.speed_kmh, 0.02
+    refute_respond_to estimator, :cadence_rpm
+  end
+
+  def test_update_uses_absolute_speed_for_reverse_rotation
+    packet = packet_with(-3_142, 500)
+    estimator = BLECycleHost::SpeedEstimator.new(2105)
+
+    estimator.update(packet)
+
+    assert_in_delta 7.57, estimator.speed_kmh, 0.02
+  end
+
+  def test_update_stops_on_zero_delta_angle
+    moving = packet_with(3_142, 500, 1)
+    stopped = packet_with(0, 500, 2)
+    estimator = BLECycleHost::SpeedEstimator.new(2105)
+
+    estimator.update(moving)
+    refute_equal 0.0, estimator.speed_kmh
+
+    assert_equal true, estimator.update(stopped)
+    assert_equal 0.0, estimator.speed_kmh
+  end
+
+  def test_update_rejects_zero_interval
+    packet = packet_with(3_142, 0)
+    estimator = BLECycleHost::SpeedEstimator.new(2105)
+
+    assert_equal false, estimator.update(packet)
+    assert_equal 0.0, estimator.speed_kmh
+  end
+
+  def test_tick_stops_after_timeout
+    packet = packet_with(3_142, 500)
+    estimator = BLECycleHost::SpeedEstimator.new(2105, 1_500)
+
+    estimator.update(packet, 1_000)
+
+    assert_equal false, estimator.tick(2_499)
+    refute_equal 0.0, estimator.speed_kmh
+
+    assert_equal true, estimator.tick(2_500)
+    assert_equal 0.0, estimator.speed_kmh
+    assert_equal false, estimator.tick(2_501)
+  end
+
+  def test_update_tracks_sequence_gap
+    estimator = BLECycleHost::SpeedEstimator.new(2105)
+
+    estimator.update(packet_with(3_142, 500, 1))
+    estimator.update(packet_with(3_142, 500, 3))
+
+    assert_equal 1, estimator.last_gap
+    assert_equal 1, estimator.gap_count
+  end
+
+  def test_update_handles_sequence_rollover
+    estimator = BLECycleHost::SpeedEstimator.new(2105)
+
+    estimator.update(packet_with(3_142, 500, 0xffff))
+    estimator.update(packet_with(3_142, 500, 0))
+
+    assert_equal 0, estimator.last_gap
+    assert_equal 0, estimator.gap_count
+  end
+
+  private
+
+  def packet_with(delta_angle_mrad, interval_ms, sequence = 1)
+    payload = BLECyclePacket.bytes(BLECyclePacket::SIZE)
+    BLECyclePacket.encode_into(
+      payload,
+      BLECyclePacket::FLAG_ANGLE_VALID,
+      sequence,
+      1_000,
+      0,
+      delta_angle_mrad,
+      interval_ms,
+      0
+    )
+    BLECyclePacket.decode(payload)
+  end
+end
