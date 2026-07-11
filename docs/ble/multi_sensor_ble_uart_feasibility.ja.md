@@ -227,6 +227,37 @@ value handleをRuby側へ渡す。同じGATT databaseを使う2sensorではvalue
 Pinned BTstackでwildcard listenerが安定しない場合は、固定2要素のlistenerと
 characteristic配列をC側に持つ。動的allocationは不要である。
 
+### Wildcard listenerの実装結果
+
+[`picoruby-ble-all-notifications.patch`](../../patches/picoruby-ble-all-notifications.patch)
+を、既存notification listener patchの後に適用する。次のnative APIをmrubyと
+mruby/cの両bindingへ追加した。
+
+```ruby
+listen_for_all_characteristic_value_updates
+stop_listening_for_all_characteristic_value_updates
+```
+
+登録APIは`GATT_CLIENT_ANY_CONNECTION`と`NULL` characteristicを使い、二重登録を
+避けるidempotentな実装である。Wildcard listener自体にconnection固有状態はないため、
+片側のdisconnectでは解除しない。BLE ownerを終了するときだけstop APIで明示的に
+解除できる。
+
+Pinned BTstackの`GATT_EVENT_NOTIFICATION` getterとsourceを確認したevent layoutは
+次のとおりである。
+
+| Field | Offset | Size |
+| --- | ---: | ---: |
+| event type (`0xA7`) | 0 | 1 byte |
+| connection handle | 2 | 2 bytes, little endian |
+| value handle | 8 | 2 bytes, little endian |
+| value length | 10 | 2 bytes, little endian |
+| value | 12 | `value length` bytes |
+
+[`NotificationEvent`](../../lib/ble_cycle_host/notification_event.rb)はこのlayoutを
+固定offsetで読む。Synthetic testでは、同じvalue handleを持つ2 connectionと、
+同じconnectionにある異なるvalue handleをそれぞれ識別できることを確認した。
+
 ## Event queueの制約
 
 現在の[event queue patch](../../patches/picoruby-ble-preserve-state-event.patch)は、
@@ -245,7 +276,10 @@ scan reportやcommand statusなどを優先して破棄し、BTstack stateとcon
 2sensorのnotificationは合計4 event/sなので、100 msごとにqueueを全drainする現在の
 loopなら定常状態の負荷は低い。接続中のscan report burstが主なリスクである。
 
-初期実装ではqueue容量を8のままにし、次を追加して判断する。
+初期実装ではqueue容量を8のままにする。Notification全体が欠落した場合はpacketの
+sequenceが飛ぶため、既存`BLECyclePacket::FrameReader#gap_count`と各estimatorの
+`gap_count`で実機から観測する。これらが増えた場合に、原因切り分け用として次のnative
+counterを追加する。
 
 - Event type別drop counter
 - 最大queue depth

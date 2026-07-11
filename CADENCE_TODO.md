@@ -224,13 +224,18 @@ Allow two BLE central connections
 
 ### 4. Native notification配送
 
-- [ ] notification listenerを全connection対象で1回だけ登録できるC APIを追加する。
-- [ ] mrubyとmruby/c bindingの両方へ同じAPIを追加する。
-- [ ] notification eventにconnection handleが保持されることをunit/synthetic packetで確認する。
-- [ ] connection handleとvalue handleが同じ/異なる組み合わせを正しく識別する。
-- [ ] disconnect時に不要なlistener状態を解放する。
-- [ ] event queueへnotification drop counterを追加するか、既存counterで観測可能にする。
-- [ ] native patch適用後のPico 2 W UF2をbuildする。
+- [x] notification listenerを全connection対象で1回だけ登録できるC APIを追加する。
+  - `GATT_CLIENT_ANY_CONNECTION`と`NULL` characteristicで一度だけ登録する。
+- [x] mrubyとmruby/c bindingの両方へ同じAPIを追加する。
+- [x] notification eventにconnection handleが保持されることをunit/synthetic packetで確認する。
+  - pinned BTstackではconnection handleがoffset `2`に保持される。
+- [x] connection handleとvalue handleが同じ/異なる組み合わせを正しく識別する。
+- [x] disconnect時に不要なlistener状態を解放する。
+  - wildcard listenerにconnection固有状態はなく、owner終了用の明示的stop APIを用意した。
+- [x] event queueへnotification drop counterを追加するか、既存counterで観測可能にする。
+  - `FrameReader#gap_count`とestimatorのsequence gapをserial logへ出して観測する。
+- [x] native patch適用後のPico 2 W UF2をbuildする。
+  - BLE 2接続 + dual GC9A01構成でC/C++ linkまで成功した。
 - [ ] 単一speed sensorのnotification受信を回帰確認する。
 
 Commit checkpoint:
