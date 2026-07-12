@@ -299,13 +299,17 @@ Host用patchは適用しない。BTstack connection poolは既定値`1`を維持
 
 ### 0. Baseline保護
 
-- [ ] 現在の7 patchと`docs/patches`を、再編前baselineとしてcommitする。
-- [ ] PicoRuby `b0c1c482`のclean checkoutを変更せず保持する。
-- [ ] Patch検証用の一時treeをclean checkoutと分離する。
-- [ ] 現行順で7 patchを連続適用できることを再確認する。
-- [ ] 現行patch適用後のcombined diffを保存し、新patchとの比較基準にする。
-- [ ] 現行host ELFのtext/BSS/heap余裕とnative symbolを記録する。
-- [ ] CRuby test suiteのrun/assertion数を記録する。
+- [x] 現在の7 patchと`docs/patches`を、再編前baselineとしてcommitする。
+- [x] PicoRuby `b0c1c482`のclean checkoutを変更せず保持する。
+- [x] Patch検証用の一時treeをclean checkoutと分離する。
+- [x] 現行順で7 patchを連続適用できることを再確認する。
+- [x] 現行patch適用後のcombined diffを保存し、新patchとの比較基準にする。
+  - Host: `b83399783f2f4e4d1ceb5959e7ebb3a18cb0a44805029edd13ecb3af9749bad4`
+  - Host + display: `1b5586e2a4e575c921837175e5bc25baf67572211953b4f501fdcff8b30a326c`
+- [x] 現行host ELFのtext/BSS/heap余裕とnative symbolを記録する。
+  - `docs/ble/multi_sensor_ble_uart_feasibility.ja.md`の最終host UF2 buildに記録済み。
+- [x] CRuby test suiteのrun/assertion数を記録する。
+  - Baseline: `85 runs, 328 assertions, 0 failures, 0 errors`。
 
 Commit checkpoint:
 
@@ -315,12 +319,12 @@ Document current PicoRuby patches
 
 ### 1. Patch chain検証script
 
-- [ ] Pinned PicoRuby revisionを検査するscriptを追加する。
-- [ ] Temporary treeへpatchを順番に適用し、失敗したpatch名を表示する。
-- [ ] 検証終了後にtemporary treeを削除し、clean source treeを汚さない。
-- [ ] Host no-displayとdual-displayのpatch listを引数または固定profileで選択できるようにする。
-- [ ] `git diff --check`と未適用/重複適用を検出する。
-- [ ] Script自体がnetwork accessを要求しないようにする。
+- [x] Pinned PicoRuby revisionを検査するscriptを追加する。
+- [x] Temporary treeへpatchを順番に適用し、失敗したpatch名を表示する。
+- [x] 検証終了後にtemporary treeを削除し、clean source treeを汚さない。
+- [x] Host no-displayとdual-displayのpatch listを引数または固定profileで選択できるようにする。
+- [x] `git diff --check`と未適用/重複適用を検出する。
+- [x] Script自体がnetwork accessを要求しないようにする。
 
 Commit checkpoint:
 
