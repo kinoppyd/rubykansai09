@@ -1,20 +1,22 @@
-# BLE cycle sensor app for R2P2/PicoRuby on Raspberry Pi Pico 2 W.
-# Default mode sends fake rotation data so the BLE path can be verified first.
+# Dedicated cadence sensor app for R2P2/PicoRuby on Raspberry Pi Pico 2 W.
 
 require "machine"
 require "ble_cycle_packet"
 require "ble_cycle_sensor/uart_peripheral"
 
-DEVICE_NAME = "PRCycle"
+DEVICE_NAME = "PRCad"
 DEBUG_LOG = true
 DEBUG_BLE = true
 
-USE_MPU = false
+# Set false to verify the BLE path with generated 60 rpm data.
+USE_MPU = true
 
 I2C_UNIT = :RP2040_I2C1
 I2C_FREQUENCY = 400_000
 SDA_PIN = 2
 SCL_PIN = 3
+
+# Adjust these values after mounting the MPU-6050 on the crank.
 AXIS = :y
 DIRECTION = 0
 MIN_PERIOD_MS = 120
@@ -28,14 +30,6 @@ NOTIFY_PERIOD_MS = 250
 FAKE_DELTA_ANGLE_MRAD = 1571
 FULL_ROTATION_MRAD = 6283
 MAX_CONSECUTIVE_I2C_ERRORS = 3
-
-DEBUG_LED = GPIO.new(25, GPIO::OUT)
-
-def blink(&blk)
-  DEBUG_LED.write(1)
-  blk.call
-  DEBUG_LED.write(0)
-end
 
 if USE_MPU
   require "i2c"
@@ -64,11 +58,11 @@ def status_value(sample_count, i2c_error_count)
   (sample_count & 0xff) | ((i2c_error_count & 0xff) << 8)
 end
 
-blink do
-  puts "BLE cycle sensor"
-  puts "mode"
-  puts(USE_MPU ? "mpu" : "fake")
-end
+puts "BLE cadence sensor"
+puts "sensor_role"
+puts "cadence"
+puts "mode"
+puts(USE_MPU ? "mpu" : "fake")
 
 mpu = nil
 detector = nil
@@ -180,6 +174,8 @@ ble.start do
 
   if DEBUG_LOG
     puts "TX"
+    puts "sensor_role"
+    puts "cadence"
     puts "seq"
     puts sequence
     puts "time_ms"

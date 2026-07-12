@@ -112,9 +112,9 @@ TX
 seq
 1
 delta_mrad
-3142
+1571
 interval_ms
-500
+250
 ```
 
 ホスト側:
@@ -157,12 +157,12 @@ count
 seq
 1
 delta_mrad
-3142
+1571
 speed_kmh
 7.57
 ```
 
-`interval_ms` は実際の event loop により 500 ms から多少ずれてよい。
+`interval_ms` は実際の event loop により 250 ms から多少ずれてよい。
 `reader_gap_count` が増え続ける場合は、BLE frame の抜けまたは decode ずれを
 疑う。
 
@@ -255,5 +255,8 @@ DIRECTION = 0
 ## 既知の制限
 
 - `BLE::UART` は byte stream なので、受信側は `FrameReader` で 20 byte frame を切り出す。
-- 現行 PicoRuby BLE firmware は `MAX_NR_HCI_CONNECTIONS 1` / `MAX_NR_GATT_CLIENTS 1` のため、センサ2台同時接続は別途検証が必要。
+- この単一sensor確認用UF2は`MAX_NR_HCI_CONNECTIONS 1` /
+  `MAX_NR_GATT_CLIENTS 1`を維持する。センサ2台用hostは
+  `picoruby-ble-two-connections.patch`を適用し、
+  [専用ケイデンスセンサの確認手順](cadence_sensor_demo.ja.md)に従う。
 - この手順は BLE 疎通確認用であり、GC9A01 表示や host-to-display 通信はまだ含まない。
