@@ -334,15 +334,19 @@ Add PicoRuby patch chain verification
 
 ### 2. Notification patch統合
 
-- [ ] Clean baselineへ既存notification 2 patchだけを順番に適用する。
-- [ ] そのcombined diffから`picoruby-ble-notification-listeners.patch`を生成する。
-- [ ] Specific listener API 1組とwildcard listener API 1組を維持する。
-- [ ] mruby/mruby-cの引数検証とmethod登録を確認する。
-- [ ] RBSに3 methodが揃うことを確認する。
-- [ ] Static listenerの二重登録、停止、再登録を確認する。
-- [ ] Specificとwildcardを同時使用しないruntime契約をdocument化する。
-- [ ] 新patch単体をclean baselineへ適用できることを確認する。
-- [ ] Legacy単一接続hostと2sensor multi-centralの両方をtestする。
+- [x] Clean baselineへ既存notification 2 patchだけを順番に適用する。
+- [x] そのcombined diffから`picoruby-ble-notification-listeners.patch`を生成する。
+- [x] Specific listener API 1組とwildcard listener API 1組を維持する。
+- [x] mruby/mruby-cの引数検証とmethod登録を確認する。
+- [x] RBSに3 methodが揃うことを確認する。
+- [x] Static listenerの二重登録、停止、再登録を確認する。
+- [x] Specificとwildcardを同時使用しないruntime契約をdocument化する。
+  - 本文の「統合時の注意」へ記載し、最終patch documentにも反映する。
+- [x] 新patch単体をclean baselineへ適用できることを確認する。
+- [x] Legacy単一接続hostと2sensor multi-centralの両方をtestする。
+  - 旧2 patchとのcombined diff SHA-256は同じ
+    `4f8ee1894ee60fefdd1a54ad957ab992a96eeca9580531e4124f28507ddb26a6`。
+  - Ruby regression: `85 runs, 328 assertions, 0 failures, 0 errors`。
 
 Commit checkpoint:
 
