@@ -1,6 +1,6 @@
 # BLE::UARTによる2センサ同時接続の実現性調査
 
-最終更新: 2026-07-11 JST
+最終更新: 2026-07-13 JST
 
 ## 調査目的
 
@@ -67,9 +67,8 @@ PicoRuby native層と`BLE::UART`のrun loopがBLE stack全体を単一ownerと�
 このrepositoryには、upstreamにない次のBLE patchがある。
 
 - [Passive scan patch](../../patches/picoruby-ble-passive-scan.patch)
-- [GAP meta event patch](../../patches/picoruby-ble-central-gap-meta.patch)
-- [Event queue patch](../../patches/picoruby-ble-preserve-state-event.patch)
-- [Notification listener patch](../../patches/picoruby-ble-central-notification-listener.patch)
+- [Notification listeners patch](../../patches/picoruby-ble-notification-listeners.patch)
+- [Central event delivery patch](../../patches/picoruby-ble-central-event-delivery.patch)
 
 以下の判断は、upstreamの制約だけでなく、これらを適用した現在の実機動作版を
 前提にしている。
@@ -195,9 +194,9 @@ eventのconnection handleから対象slotを決める必要がある。
 
 - [PicoRuby BLE::UART implementation](https://github.com/picoruby/picoruby/blob/7869bc06d0c610a9c702c416df81c9a38267b55b/mrbgems/picoruby-ble-uart/mrblib/ble_uart.rb)
 
-## 現行notification listener patchの制約
+## Specific notification listener APIの制約
 
-[Notification listener patch](../../patches/picoruby-ble-central-notification-listener.patch)
+[Notification listeners patch](../../patches/picoruby-ble-notification-listeners.patch)
 は、notificationをRuby packet handlerへ配送するために次の2個をstaticに持つ。
 
 ```c
@@ -229,9 +228,8 @@ characteristic配列をC側に持つ。動的allocationは不要である。
 
 ### Wildcard listenerの実装結果
 
-[`picoruby-ble-all-notifications.patch`](../../patches/picoruby-ble-all-notifications.patch)
-を、既存notification listener patchの後に適用する。次のnative APIをmrubyと
-mruby/cの両bindingへ追加した。
+現行の[notification listeners patch](../../patches/picoruby-ble-notification-listeners.patch)は、
+specific APIと同時に次のwildcard APIをmrubyとmruby/cの両bindingへ追加する。
 
 ```ruby
 listen_for_all_characteristic_value_updates
@@ -260,10 +258,10 @@ Pinned BTstackの`GATT_EVENT_NOTIFICATION` getterとsourceを確認したevent l
 
 ## Event queueの制約
 
-現在の[event queue patch](../../patches/picoruby-ble-preserve-state-event.patch)は、
+現在の[central event delivery patch](../../patches/picoruby-ble-central-event-delivery.patch)は、
 mruby heapからevent packet分をallocateする8要素queueである。Queueが満杯の場合は
-scan reportやcommand statusなどを優先して破棄し、BTstack stateとconnection completeを
-残す。
+scan reportや通常のcommand statusなどを優先して破棄し、BTstack state、connection complete、
+LE Create Connection (`0x200d`) のcommand statusを残す。
 
 2接続化で注意するeventは次のとおり。
 

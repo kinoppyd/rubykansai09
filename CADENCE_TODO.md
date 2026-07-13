@@ -1,6 +1,6 @@
 # PicoRuby Dedicated Cadence Sensor TODO
 
-最終更新: 2026-07-12 JST
+最終更新: 2026-07-13 JST
 
 ## 目的
 
@@ -136,7 +136,7 @@ cadence_rpm = abs(rotations) * 60000.0 / interval_ms
 変更候補:
 
 - `r2p2_apps/ble_cycle_host/home/app.rb`
-- `patches/picoruby-ble-central-notification-listener.patch`
+- `patches/picoruby-ble-notification-listeners.patch`
 - `docs/ble/custom_cycle_uart_demo.ja.md`
 - `docs/ble/dual_gc9a01_cycle_host.ja.md`
 - `BLE_TODO.md`

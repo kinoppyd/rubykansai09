@@ -400,14 +400,18 @@ Refresh independent PicoRuby patches
 - [x] 新patch chainが通るまで旧4 patchを残す。
 - [x] 同等性確認後に旧notification 2 patchを削除する。
 - [x] 同等性確認後に旧event delivery 2 patchを削除する。
-- [ ] `docs/patches`へ新patch 2本の日本語解説を追加する。
-- [ ] 旧patch documentは削除するか`docs/patches/archive`へ移すかを決める。
-- [ ] `cadence_sensor_demo.ja.md`のpatch順を5本構成へ更新する。
-- [ ] `dual_gc9a01_cycle_host.ja.md`のpatch順を更新する。
-- [ ] `custom_cycle_uart_demo.ja.md`の旧patch名参照を更新する。
-- [ ] `multi_sensor_ble_uart_feasibility.ja.md`のpatch linkを更新する。
-- [ ] `CADENCE_TODO.md`と`BLE_TODO.md`の履歴記述を壊さず、現行patch名だけ更新する。
-- [ ] `patches/*.patch`と`docs/patches/*.ja.md`が1対1であることを検査する。
+- [x] `docs/patches`へ新patch 2本の日本語解説を追加する。
+- [x] 旧patch documentは削除するか`docs/patches/archive`へ移すかを決める。
+  - 統合後の運用時に誤って旧patchを参照しないよう、旧4文書は削除した。統合経緯は新文書と
+    本TODOに残す。
+- [x] `cadence_sensor_demo.ja.md`のpatch順を5本構成へ更新する。
+- [x] `dual_gc9a01_cycle_host.ja.md`のpatch順を更新する。
+- [x] `custom_cycle_uart_demo.ja.md`の旧patch名参照を更新する。
+- [x] `multi_sensor_ble_uart_feasibility.ja.md`のpatch linkを更新する。
+- [x] `CADENCE_TODO.md`と`BLE_TODO.md`の履歴記述を壊さず、現行patch名だけ更新する。
+  - `CADENCE_TODO.md`の現行patch名を更新した。`BLE_TODO.md`には旧4 patch名の参照がなく、
+    変更不要だった。
+- [x] `patches/*.patch`と`docs/patches/*.ja.md`が1対1であることを検査する。
 
 Commit checkpoint:
 
@@ -461,10 +465,13 @@ Verify consolidated PicoRuby patch builds
 - [x] Specific listenerを使うlegacy `UARTCentral`経路を確認する。
 - [x] Wildcard listenerで同じvalue handleをconnection handle別に配送するtestを確認する。
 - [x] Connection failure command statusを失わずscanへ戻るtestを追加する。
-- [ ] Queue満杯時にscan reportよりcritical eventを優先するtest方法を決める。
+- [x] Queue満杯時にscan reportよりcritical eventを優先するtest方法を決める。
 
 CRuby回帰結果は`85 runs, 328 assertions, 0 failures, 0 errors`。`mrbc -c`はsensor 2 app、
 host app、multi/single centralとnotification処理libraryのすべてで`Syntax OK`となった。
+Native優先度はhost-native test buildでadvertising report 8件を注入後、`0x200d` command statusを
+投入してscan reportが押し出されることを直接検査する。Production firmwareへevent注入APIは
+追加しない。詳細は`docs/patches/picoruby-ble-central-event-delivery.ja.md`に記録した。
 
 ### 8. 実機検証
 
@@ -493,22 +500,22 @@ UF2へ入れ替えた後に行う。特に時間指定のある試験はsoftware
 
 ## 完了条件
 
-- [ ] 現行7 patchが推奨5 patchへ置き換わっている。
-- [ ] Patch名と変更内容が一致している。
-- [ ] 旧patch 4本へのactiveなdocument linkが残っていない。
-- [ ] 新patch chainがpinned clean PicoRuby treeへ連続適用できる。
-- [ ] Sensor、host no-display、host dual-displayの3 UF2がclean buildできる。
-- [ ] Legacy specific listenerとmulti wildcard listenerの両経路が動作する。
+- [x] 現行7 patchが推奨5 patchへ置き換わっている。
+- [x] Patch名と変更内容が一致している。
+- [x] 旧patch 4本へのactiveなdocument linkが残っていない。
+- [x] 新patch chainがpinned clean PicoRuby treeへ連続適用できる。
+- [x] Sensor、host no-display、host dual-displayの3 UF2がclean buildできる。
+- [x] Legacy specific listenerとmulti wildcard listenerの両経路が動作する。
 - [ ] 2sensorを250 ms周期で同時受信できる。
 - [ ] Connection failure、disconnect、再接続でstate machineが停止しない。
 - [ ] 30分試験でNoMemoryErrorと継続的sequence gapがない。
-- [ ] 各patchに対応する日本語documentが`docs/patches`にある。
+- [x] 各patchに対応する日本語documentが`docs/patches`にある。
 
 ## Rollback方針
 
-再編中は旧patchを削除せず、新patchのclean apply、native build、Ruby test、実機試験が完了した
-時点で置き換える。問題が出た場合はfile単位で旧patch chainへ戻し、次のどの境界で差が出たか
-を切り分ける。
+旧patchとその文書は現行treeから削除したが、再編前baseline commit `b010a1f`に保存されている。
+新しいUF2の実機検証で問題が出た場合は、working treeへ旧patchを常設し直さず、baseline commit
+から一時build treeへ旧7本を取り出して比較する。次のどの境界で差が出たかを切り分ける。
 
 1. Notification registration。
 2. Native event forwarding。
@@ -516,5 +523,6 @@ UF2へ入れ替えた後に行う。特に時間指定のある試験はsoftware
 4. BTstack 2connection pool。
 5. GC9A01 C++/LovyanGFX link。
 
-Patch統合commitとbehavior修正commitを分け、queue policy変更が原因か、単なるdiff統合が原因かを
-判別できる履歴を維持する。
+Notification統合は旧combined diffと完全一致する。Event deliveryで挙動が変わり得る箇所は
+`0x200d` command statusの保護だけなので、問題時はまずこのqueue policyを比較する。統合commit、
+旧patch削除commit、build検証commitを分けた履歴から原因範囲を追跡する。

@@ -85,11 +85,10 @@ BLE host用patch chainの最初に適用する。このパッチ自体は他のp
 
 ```text
 1. picoruby-ble-passive-scan.patch
-2. picoruby-ble-central-notification-listener.patch
-3. picoruby-ble-all-notifications.patch
-4. picoruby-ble-central-gap-meta.patch
-5. picoruby-ble-preserve-state-event.patch
-6. picoruby-ble-two-connections.patch
+2. picoruby-ble-notification-listeners.patch
+3. picoruby-ble-central-event-delivery.patch
+4. picoruby-ble-two-connections.patch
+5. picoruby-gc9a01-speedometer.patch       # display buildだけ
 ```
 
 ### 適用対象

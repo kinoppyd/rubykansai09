@@ -44,15 +44,7 @@ Ruby fileを置くだけでは増やせない。
 
 ### 実測したRAM増加
 
-BLE + dual GC9A01統合buildで1接続版と2接続版を比較した結果は次のとおり。
-
-| Item | 1 connection | 2 connections | Difference |
-| --- | ---: | ---: | ---: |
-| Text | 2,353,748 | 2,353,748 | 0 |
-| BSS | 443,832 | 444,736 | +904 bytes |
-| Heap limitまでの空き | 47,096 | 46,192 | -904 bytes |
-
-1slot追加分の内訳はlink map上で次の値だった。
+1slot追加分の内訳はlink map上で次の値になる。
 
 ```text
 GATT client:     144 bytes
@@ -63,6 +55,11 @@ Total:           904 bytes
 コード量は変わらず、固定pool分だけBSSが増える。2接続化そのものはPico 2 Wのmemory上の
 blockerではなかったが、Ruby slot、event queue、受信String、displayを含むruntime heapの
 安定性は別途確認が必要である。
+
+再編後のhost buildではHCI storage 1,520 bytes、GATT storage 288 bytesとして2slotを確認した。
+Host no-displayはBSS 443,128 bytes、heap limitまで48,264 bytes、dual-displayはBSS 444,748
+bytes、heap limitまで46,180 bytesの余裕がある。Sensor buildはそれぞれ760 bytes、144 bytesの
+1slotを維持する。
 
 ### 2接続の手順はRuby側で管理する
 
@@ -95,9 +92,8 @@ Speed/cadence sensorはperipheral 1接続だけを受けるため、sensor UF2�
 
 2connection poolだけではnotificationを2本配送できない。少なくとも次が必要である。
 
-- `picoruby-ble-all-notifications.patch`
-- `picoruby-ble-central-gap-meta.patch`
-- `picoruby-ble-preserve-state-event.patch`
+- `picoruby-ble-notification-listeners.patch`
+- `picoruby-ble-central-event-delivery.patch`
 - Ruby側`MultiUARTCentral`と`NotificationEvent`
 
 現在のpatch chainではBLE系patchの最後に適用する。
@@ -128,5 +124,5 @@ connection_handle
 - 一方のdisconnect中も他方のRXと表示が継続する。
 - 30分以上の試験でNoMemoryErrorと継続的sequence gapがない。
 
-2026-07-11の最終buildはPicoRuby
+2026-07-13の再編後buildはPicoRuby
 `b0c1c4828b82b267dab9cabf4a372c46c2a1075e`、Pico SDK 2.2.0でlinkした。

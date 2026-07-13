@@ -117,7 +117,7 @@ Native mrbgemは240x240 full framebufferを確保せず、初回に盤面を直�
 周辺だけを消去・復元して新しい針を描く。Ruby側は速度/ケイデンスの数値を渡すだけで、
 framebufferをRuby heapへ置かない。
 
-2接続BLE + dual GC9A01最終buildではBSS 444,748 bytes、heap limitまで46,180 bytesの空きを
+2接続BLE + dual GC9A01再編後buildではBSS 444,748 bytes、heap limitまで46,180 bytesの空きを
 確認した。これは特定revisionとbuild optionでの値であり、将来のmrbgem追加後も同じ余裕を
 保証しない。
 
