@@ -356,18 +356,21 @@ Consolidate BLE notification listener patches
 
 ### 3. Central event delivery patch統合
 
-- [ ] Clean baselineへ既存central GAP/event queue 2 patchを適用したcombined diffを作る。
-- [ ] `picoruby-ble-central-event-delivery.patch`として再生成する。
-- [ ] Central event whitelistとmruby queueを同じpatchへ含める。
-- [ ] `central_hci_working`をnotification static変数へ依存しない位置/contextへ置く。
-- [ ] Connection complete全形式とdisconnectを非破棄eventとして確認する。
-- [ ] LE Create Connection command status `0x200d`をcritical eventとして保護する。
-- [ ] その他command eventのdiscard policyをopcode単位で決める。
-- [ ] GATT result/query complete/notificationのFIFO順を維持する。
-- [ ] Queue途中削除時のpointer、size、tail、count更新を再確認する。
-- [ ] mruby-cが意図せずqueue版へ変わっていないことを確認する。
-- [ ] `MultiUARTTransport`の最大8 event/tickとqueue capacity 8の関係をtestする。
-- [ ] Scan report flood中もuser callbackが20 ms単位で戻ることをtestする。
+- [x] Clean baselineへ既存central GAP/event queue 2 patchを適用したcombined diffを作る。
+- [x] `picoruby-ble-central-event-delivery.patch`として再生成する。
+- [x] Central event whitelistとmruby queueを同じpatchへ含める。
+- [x] `central_hci_working`をnotification static変数へ依存しない位置/contextへ置く。
+- [x] Connection complete全形式とdisconnectを非破棄eventとして確認する。
+- [x] LE Create Connection command status `0x200d`をcritical eventとして保護する。
+- [x] その他command eventのdiscard policyをopcode単位で決める。
+  - `0x200d`以外のcommand statusと全command completeは引き続きdiscardableとする。
+- [x] GATT result/query complete/notificationのFIFO順を維持する。
+- [x] Queue途中削除時のpointer、size、tail、count更新を再確認する。
+- [x] mruby-cが意図せずqueue版へ変わっていないことを確認する。
+- [x] `MultiUARTTransport`の最大8 event/tickとqueue capacity 8の関係をtestする。
+- [x] Scan report flood中もuser callbackが20 ms単位で戻ることをtestする。
+  - Multi-central: `10 runs, 46 assertions`。
+  - Bounded transport: `1 run, 5 assertions`。
 
 Commit checkpoint:
 
