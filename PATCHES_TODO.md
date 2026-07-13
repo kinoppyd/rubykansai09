@@ -380,12 +380,13 @@ Consolidate BLE central event delivery patches
 
 ### 4. 独立patchのrefresh
 
-- [ ] Passive scan patchをclean baselineから再生成し、不要なindex/context churnを除く。
-- [ ] mruby-c側がすでに`:passive -> 0`であることをdocumentに維持する。
-- [ ] Two-connections patchを2 macroだけの差分として維持する。
-- [ ] GC9A01 patchがnotification/event patchへ依存していないことを確認する。
-- [ ] LovyanGFX path、C++ glob、primary/secondary pin definitionを再確認する。
-- [ ] 各独立patchの`git apply --check`を実行する。
+- [x] Passive scan patchをclean baselineから再生成し、不要なindex/context churnを除く。
+  - 現行差分が1行だけで追加churnがないため、そのまま維持した。
+- [x] mruby-c側がすでに`:passive -> 0`であることをdocumentに維持する。
+- [x] Two-connections patchを2 macroだけの差分として維持する。
+- [x] GC9A01 patchがnotification/event patchへ依存していないことを確認する。
+- [x] LovyanGFX path、C++ glob、primary/secondary pin definitionを再確認する。
+- [x] 各独立patchの`git apply --check`を実行する。
 
 Commit checkpoint:
 
@@ -395,9 +396,9 @@ Refresh independent PicoRuby patches
 
 ### 5. 旧patchの削除とdocument移行
 
-- [ ] 新patch chainが通るまで旧4 patchを残す。
-- [ ] 同等性確認後に旧notification 2 patchを削除する。
-- [ ] 同等性確認後に旧event delivery 2 patchを削除する。
+- [x] 新patch chainが通るまで旧4 patchを残す。
+- [x] 同等性確認後に旧notification 2 patchを削除する。
+- [x] 同等性確認後に旧event delivery 2 patchを削除する。
 - [ ] `docs/patches`へ新patch 2本の日本語解説を追加する。
 - [ ] 旧patch documentは削除するか`docs/patches/archive`へ移すかを決める。
 - [ ] `cadence_sensor_demo.ja.md`のpatch順を5本構成へ更新する。

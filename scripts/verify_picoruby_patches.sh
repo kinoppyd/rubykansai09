@@ -10,10 +10,8 @@ source_tree="${2:-${repo_root}/tmp/picoruby-latest-r2p2}"
 
 ble_host_patches=(
   "patches/picoruby-ble-passive-scan.patch"
-  "patches/picoruby-ble-central-notification-listener.patch"
-  "patches/picoruby-ble-all-notifications.patch"
-  "patches/picoruby-ble-central-gap-meta.patch"
-  "patches/picoruby-ble-preserve-state-event.patch"
+  "patches/picoruby-ble-notification-listeners.patch"
+  "patches/picoruby-ble-central-event-delivery.patch"
   "patches/picoruby-ble-two-connections.patch"
 )
 
