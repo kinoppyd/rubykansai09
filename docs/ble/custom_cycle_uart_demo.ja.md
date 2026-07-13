@@ -1,6 +1,6 @@
 # BLE::UART custom cycle demo
 
-最終更新: 2026-07-10 JST
+最終更新: 2026-07-13 JST
 
 ## 目的
 
@@ -28,13 +28,11 @@ GC9A01 の確認は後続手順で行うため、この BLE 疎通確認では
 `patches/picoruby-ble-passive-scan.patch` を適用した UF2 を使う。
 この patch は PicoRuby mruby binding の `set_scan_params(:passive, ...)` を
 true passive scan にする。
-接続完了を示す BTstack の GAP meta event を Ruby 側で受け取るため、
-`patches/picoruby-ble-central-gap-meta.patch` も同じ UF2 に適用する。
-PicoRuby の BLE event は upstream では単一スロットなので、連続して届く
-HCI 起動完了 event / BLE 接続完了 event / GATT discovery event を落とさないように
-`patches/picoruby-ble-preserve-state-event.patch` で小さな event queue を追加する。
+接続完了を示す BTstack の GAP meta event を Ruby 側で受け取り、連続して届く
+HCI 起動完了 event / BLE 接続完了 event / GATT discovery event を容量8のqueueで保持するため、
+`patches/picoruby-ble-central-event-delivery.patch` も同じ UF2 に適用する。
 CCCD を有効化しただけでは BTstack から notification callback が配送されないため、
-`patches/picoruby-ble-central-notification-listener.patch` で central 側に
+`patches/picoruby-ble-notification-listeners.patch` で central 側に
 `listen_for_characteristic_value_updates` binding を追加する。
 
 ## センサ側へ配置するファイル
@@ -172,14 +170,14 @@ speed_kmh
 
 ## 接続できない場合の切り分け
 
-- ホスト側に `UART Central up` / `Scan started` が出ず、`scan_state TC_OFF` が続く場合は、central の HCI 起動 event が Ruby 側へ届いていない。UF2 に `patches/picoruby-ble-preserve-state-event.patch` が適用されているか確認する。
+- ホスト側に `UART Central up` / `Scan started` が出ず、`scan_state TC_OFF` が続く場合は、central の HCI 起動 event が Ruby 側へ届いていない。UF2 に `patches/picoruby-ble-central-event-delivery.patch` が適用されているか確認する。
 - `gap_connect 0` の後に `connect_event type 5` / `b5 8` が出て再 scan する場合は、BLE connection complete event を Ruby 側が処理する前に失っている可能性がある。同じ patch が event queue 版になっているか確認する。
 - `Connected. Handle` の後に `NUS service not found` が出る場合は、GATT service discovery result が Ruby 側に届いていない、または GATT event offset が合っていない。UF2 が event queue 版 patch でビルドされているか、ホスト側 `/lib/ble_cycle_host/uart_central_patch.rb` が GATT offset 補正版か確認する。
-- ホスト側に `NUS central ready` / `ble_connected 1` が出るが `RX` が出ない場合は、ホスト側に `listen_notifications` / `0` が出ているか確認する。出ない場合は UF2 に `patches/picoruby-ble-central-notification-listener.patch` が入っていない。出ている場合は、センサ側に `Notifications enabled` と `TX` が続いているか確認する。センサ側 `/lib/ble_cycle_sensor/uart_peripheral.rb` は CCCD 有効化を送信可能状態として扱う最新版を使う。
+- ホスト側に `NUS central ready` / `ble_connected 1` が出るが `RX` が出ない場合は、ホスト側に `listen_notifications` / `0` が出ているか確認する。出ない場合は UF2 に `patches/picoruby-ble-notification-listeners.patch` が入っていない。出ている場合は、センサ側に `Notifications enabled` と `TX` が続いているか確認する。センサ側 `/lib/ble_cycle_sensor/uart_peripheral.rb` は CCCD 有効化を送信可能状態として扱う最新版を使う。
 - `scan_reports` が増えない場合は、ホストが advertising report を受け取れていない。
 - `scan_reports` は増えるが `Found cycle UART device` が出ない場合は、センサ側の device name が `PRCycle` で起動しているか、ホスト側の `DEVICE_NAME` と一致しているかを確認する。
 - `Found cycle UART device` が出て `gap_connect` が `0` ではない場合は、address type や接続パラメータ側の問題を疑う。
-- `Found cycle UART device` と `gap_connect 0` は出るが `TC_W4_CONNECT` のまま止まる場合は、UF2 に `patches/picoruby-ble-central-gap-meta.patch` が適用されているか、ホスト側 `/lib/ble_cycle_host/uart_central_patch.rb` が `HCI_EVENT_META_GAP` / `GAP_SUBEVENT_LE_CONNECTION_COMPLETE` 対応版になっているか確認する。
+- `Found cycle UART device` と `gap_connect 0` は出るが `TC_W4_CONNECT` のまま止まる場合は、UF2 に `patches/picoruby-ble-central-event-delivery.patch` が適用されているか、ホスト側 `/lib/ble_cycle_host/uart_central_patch.rb` が `HCI_EVENT_META_GAP` / `GAP_SUBEVENT_LE_CONNECTION_COMPLETE` 対応版になっているか確認する。
 - `Connected. Handle` は出るが `NUS central ready` が出ない場合は、GATT service / characteristic discovery または CCCD write の失敗を疑う。
 
 ## scan report が 0 の場合

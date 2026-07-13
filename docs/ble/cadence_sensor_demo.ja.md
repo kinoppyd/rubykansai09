@@ -1,6 +1,6 @@
 # 専用ケイデンスセンサの確認手順
 
-最終更新: 2026-07-11 JST
+最終更新: 2026-07-13 JST
 
 ## 目的
 
@@ -175,14 +175,12 @@ Cadence addressを確認する最初の起動だけは`CADENCE_DEVICE_ADDRESS = 
 ## Host firmware patch順
 
 Clean PicoRuby treeとは別のhost build treeを作り、次の順序で適用する。この順序で
-7 patchを連続適用できることを確認済みである。
+5 patchを連続適用できることを確認済みである。
 
 ```text
 picoruby-ble-passive-scan.patch
-picoruby-ble-central-notification-listener.patch
-picoruby-ble-all-notifications.patch
-picoruby-ble-central-gap-meta.patch
-picoruby-ble-preserve-state-event.patch
+picoruby-ble-notification-listeners.patch
+picoruby-ble-central-event-delivery.patch
 picoruby-ble-two-connections.patch
 picoruby-gc9a01-speedometer.patch       # 2画面hostだけ
 ```

@@ -1,3 +1,34 @@
+diff --git a/mrbgems/picoruby-ble/ports/rp2040/ble.c b/mrbgems/picoruby-ble/ports/rp2040/ble.c
+index d0a28e50..daaf9972 100644
+--- a/mrbgems/picoruby-ble/ports/rp2040/ble.c
++++ b/mrbgems/picoruby-ble/ports/rp2040/ble.c
+@@ -11,6 +11,7 @@
+ #include "ble_common.h"
+
+ static enum BLE_role_t role = BLE_ROLE_NONE;
++static bool central_hci_working = false;
+ static btstack_packet_callback_registration_t ble_hci_event_callback_registration;
+ static btstack_packet_callback_registration_t sm_event_callback_registration;
+ static btstack_timer_source_t heartbeat;
+@@ -78,7 +79,18 @@ packet_handler(uint8_t packet_type, uint16_t channel, uint8_t *packet, uint16_t
+     case BLE_ROLE_CENTRAL:
+       switch (hci_event_packet_get_type(packet)) {
+         case BTSTACK_EVENT_STATE:
++          central_hci_working = (btstack_event_state_get_state(packet) == HCI_STATE_WORKING);
++          BLE_push_event(packet, size);
++          break;
++        case HCI_EVENT_COMMAND_COMPLETE:
++        case HCI_EVENT_COMMAND_STATUS:
++          if (central_hci_working) {
++            BLE_push_event(packet, size);
++          }
++          break;
++        case HCI_EVENT_DISCONNECTION_COMPLETE:
+         case HCI_EVENT_LE_META:
++        case HCI_EVENT_META_GAP:
+         case GAP_EVENT_ADVERTISING_REPORT:
+         case GATT_EVENT_QUERY_COMPLETE:
+         case GATT_EVENT_SERVICE_QUERY_RESULT:
 diff --git a/mrbgems/picoruby-ble/src/ble.c b/mrbgems/picoruby-ble/src/ble.c
 index a72b21d1..84ae9e8d 100644
 --- a/mrbgems/picoruby-ble/src/ble.c
@@ -5,22 +36,22 @@ index a72b21d1..84ae9e8d 100644
 @@ -14,8 +14,10 @@ static bool write_values_mutex = false;
  static bool heatbeat_flag = false;
  static bool packet_flag = false;
- 
+
 +#if defined(PICORB_VM_MRUBYC)
  static uint8_t *packet = NULL;
  static uint16_t packet_size = 0;
 +#endif
- 
+
  #if defined(PICORB_VM_MRUBY)
- 
+
 diff --git a/mrbgems/picoruby-ble/src/mruby/ble.c b/mrbgems/picoruby-ble/src/mruby/ble.c
-index ce314f54..d975d599 100644
+index ce314f54..e3d94cb5 100644
 --- a/mrbgems/picoruby-ble/src/mruby/ble.c
 +++ b/mrbgems/picoruby-ble/src/mruby/ble.c
-@@ -8,18 +8,128 @@ static mrb_state *_mrb = NULL;
+@@ -8,18 +8,138 @@ static mrb_state *_mrb = NULL;
  static mrb_value write_values;
  static mrb_value read_values;
- 
+
 +#define BLE_EVENT_BTSTACK_STATE 0x60
 +#define BLE_EVENT_LE_META 0x3e
 +#define BLE_EVENT_META_GAP 0xe7
@@ -32,6 +63,7 @@ index ce314f54..d975d599 100644
 +#define BLE_SUBEVENT_LE_ADVERTISING_REPORT 0x02
 +#define BLE_EVENT_COMMAND_COMPLETE 0x0e
 +#define BLE_EVENT_COMMAND_STATUS 0x0f
++#define BLE_OPCODE_HCI_LE_CREATE_CONNECTION 0x200d
 +#define BLE_EVENT_QUEUE_CAPACITY 8
 +
 +static uint8_t *packet_queue[BLE_EVENT_QUEUE_CAPACITY] = { NULL };
@@ -77,10 +109,19 @@ index ce314f54..d975d599 100644
 +}
 +
 +static bool
++BLE_event_is_critical_command(const uint8_t *data, uint16_t size)
++{
++  if (size <= 5 || data[0] != BLE_EVENT_COMMAND_STATUS) return false;
++  uint16_t opcode = data[4] | ((uint16_t)data[5] << 8);
++  return opcode == BLE_OPCODE_HCI_LE_CREATE_CONNECTION;
++}
++
++static bool
 +BLE_event_is_discardable(const uint8_t *data, uint16_t size)
 +{
 +  if (BLE_event_is_btstack_state(data, size)) return false;
 +  if (BLE_event_is_connection_complete(data, size)) return false;
++  if (BLE_event_is_critical_command(data, size)) return false;
 +  if (BLE_event_is_scan_report(data, size)) return true;
 +  if (size == 0) return true;
 +  return data[0] == BLE_EVENT_COMMAND_COMPLETE ||
@@ -151,8 +192,8 @@ index ce314f54..d975d599 100644
 +  packet_flag = true;
    packet_mutex = false;
  }
- 
-@@ -75,12 +185,17 @@ static mrb_value
+
+@@ -75,12 +195,17 @@ static mrb_value
  mrb_pop_packet(mrb_state *mrb, mrb_value self)
  {
    mrb_value packet_value = mrb_nil_value();
