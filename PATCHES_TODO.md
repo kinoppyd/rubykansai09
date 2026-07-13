@@ -14,7 +14,8 @@
 - mruby/mruby-c、BTstack、R2P2 CMakeの境界を混同しない。
 - 将来PicoRubyへ同等修正が入った場合、不要になったpatchを判定できる。
 
-この文書は再編計画であり、既存patchの削除・置換はまだ行わない。
+この文書は再編計画と実施記録を兼ねる。Software側の再編と検証は完了しており、
+「実機検証」に残る項目は新しい5 patch構成でbuildしたUF2による再確認待ちである。
 
 ## 調査基準
 
@@ -416,17 +417,34 @@ Replace legacy PicoRuby patch chain
 
 ### 6. Clean applyとnative build検証
 
-- [ ] PicoRuby `b0c1c482`のtemporary clean treeへ新4 BLE patchを順番に適用する。
-- [ ] 同じtreeへGC9A01 patchを追加適用する。
-- [ ] Host no-display UF2をclean buildする。
-- [ ] Host dual-GC9A01 UF2を別build treeでclean buildする。
-- [ ] Sensor UF2はhost patchなしのclean treeからbuildする。
-- [ ] Host ELFにwildcard listener API symbolがあることを確認する。
-- [ ] Sensor ELFにhost専用wildcard listener APIを含めていないことを確認する。
-- [ ] Host mapでHCI/GATT poolが2slotあることを確認する。
-- [ ] Sensor mapでpoolが1slotのままであることを確認する。
-- [ ] 旧buildと新buildのtext/BSS/heap差を比較する。
-- [ ] 意図したqueue policy変更以外にnative diffがないことを確認する。
+- [x] PicoRuby `b0c1c482`のtemporary clean treeへ新4 BLE patchを順番に適用する。
+- [x] 同じtreeへGC9A01 patchを追加適用する。
+- [x] Host no-display UF2をclean buildする。
+- [x] Host dual-GC9A01 UF2を別build treeでclean buildする。
+- [x] Sensor UF2はhost patchなしのclean treeからbuildする。
+- [x] Host ELFにwildcard listener API symbolがあることを確認する。
+- [x] Sensor ELFにhost専用wildcard listener APIを含めていないことを確認する。
+- [x] Host mapでHCI/GATT poolが2slotあることを確認する。
+- [x] Sensor mapでpoolが1slotのままであることを確認する。
+- [x] 旧buildと新buildのtext/BSS/heap差を比較する。
+- [x] 意図したqueue policy変更以外にnative diffがないことを確認する。
+
+検証結果:
+
+| Profile | text | BSS | Heap余裕 | HCI storage | GATT storage | UF2 SHA-256 |
+| --- | ---: | ---: | ---: | ---: | ---: | --- |
+| Sensor | 2,259,168 | 442,124 | 49,268 | 760 bytes / 1 slot | 144 bytes / 1 slot | `78621b4c7d2baaaa781340f98fd011c654e3d3ce8368abcf60b5a165a679a8ea` |
+| Host no-display | 2,260,288 | 443,128 | 48,264 | 1,520 bytes / 2 slots | 288 bytes / 2 slots | `20c6e75fa6f657f29e647a92f373f71c11556ad000dd89c27777ed5a0212af4c` |
+| Host dual-display | 2,354,052 | 444,748 | 46,180 | 1,520 bytes / 2 slots | 288 bytes / 2 slots | `6d149d7653d60331cb44329e96c65e4d97d870007e6d89070f6b78a65cbb43ac` |
+
+- Pinned clean treeへのcombined diff SHA-256はhostが
+  `cf3e62f6e6a7657a0fc4c101ab20a5583b270f9e18865d93baa6fef34b70c657`、
+  host-displayが`73a6a7b544b06a3e6ba0d10a1b8c55c988147d66beeb4ce8b82083503b0399a5`。
+- 旧buildとのtext/BSS/heap差は0 bytes。再編によるbinary size増加はない。
+- Notification統合patchは旧2本のcombined diffと完全一致する。Event delivery統合patchの
+  意味上の差分はLE Create Connection command status (`0x200d`) の保護だけである。
+- Host ELFには`BLE_listen_for_all_characteristic_value_updates`と停止APIがあり、sensor ELFには
+  どちらもない。
 
 Commit checkpoint:
 
@@ -436,16 +454,22 @@ Verify consolidated PicoRuby patch builds
 
 ### 7. Ruby回帰検証
 
-- [ ] 全CRuby testを実行する。
-- [ ] `mrbc -c`でspeed sensor appを確認する。
-- [ ] `mrbc -c`でcadence sensor appを確認する。
-- [ ] `mrbc -c`でhost appと新BLE libraryを確認する。
-- [ ] Specific listenerを使うlegacy `UARTCentral`経路を確認する。
-- [ ] Wildcard listenerで同じvalue handleをconnection handle別に配送するtestを確認する。
-- [ ] Connection failure command statusを失わずscanへ戻るtestを追加する。
+- [x] 全CRuby testを実行する。
+- [x] `mrbc -c`でspeed sensor appを確認する。
+- [x] `mrbc -c`でcadence sensor appを確認する。
+- [x] `mrbc -c`でhost appと新BLE libraryを確認する。
+- [x] Specific listenerを使うlegacy `UARTCentral`経路を確認する。
+- [x] Wildcard listenerで同じvalue handleをconnection handle別に配送するtestを確認する。
+- [x] Connection failure command statusを失わずscanへ戻るtestを追加する。
 - [ ] Queue満杯時にscan reportよりcritical eventを優先するtest方法を決める。
 
+CRuby回帰結果は`85 runs, 328 assertions, 0 failures, 0 errors`。`mrbc -c`はsensor 2 app、
+host app、multi/single centralとnotification処理libraryのすべてで`Syntax OK`となった。
+
 ### 8. 実機検証
+
+以下は再編前の等価な7 patch構成では確認済みの経路を含むが、完了判定は新しい5 patch構成の
+UF2へ入れ替えた後に行う。特に時間指定のある試験はsoftware検証で代替しない。
 
 - [ ] Speed sensor 1台だけで接続、通知、表示を確認する。
 - [ ] Cadence sensor 1台だけで接続、通知、表示を確認する。
