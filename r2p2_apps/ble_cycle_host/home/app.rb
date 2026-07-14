@@ -7,6 +7,7 @@ require "ble_cycle_host/multi_uart_central"
 require "ble_cycle_host/speed_estimator"
 require "ble_cycle_host/cadence_estimator"
 require "ble_cycle_host/display_output"
+require "ble_cycle_host/csv_logger"
 
 DEBUG_BLE = true
 DEBUG_RX = true
@@ -48,6 +49,8 @@ DISPLAY_STARTUP_SWEEP_MAX_CADENCE_RPM = 120
 DISPLAY_STARTUP_SWEEP_STEP_KMH = 4
 DISPLAY_STARTUP_SWEEP_FRAME_MS = 20
 DISPLAY_STARTUP_SWEEP_PAUSE_MS = 250
+CSV_LOG_DIRECTORY = "/home/logs"
+CSV_LOG_INTERVAL_MS = 1_000
 
 def rounded_2(v)
   (v * 100.0).to_i / 100.0
@@ -171,6 +174,25 @@ def run_display_startup_sweep(output)
   true
 end
 
+def build_csv_logger
+  logger = BLECycleHost::CSVLogger.new(CSV_LOG_DIRECTORY, CSV_LOG_INTERVAL_MS)
+  puts "log_file"
+  puts logger.path
+  logger
+rescue => e
+  puts "log_error"
+  puts e.message
+  nil
+end
+
+def close_csv_logger(logger)
+  return unless logger
+  logger.close
+rescue => e
+  puts "log_close_error"
+  puts e.message
+end
+
 puts "BLE cycle host"
 puts "wheel_circumference_mm"
 puts WHEEL_CIRCUMFERENCE_MM
@@ -183,6 +205,7 @@ puts CADENCE_DEVICE_NAME
 puts "cadence_target_address"
 puts(CADENCE_DEVICE_ADDRESS || "name_fallback")
 
+csv_logger = build_csv_logger
 display_output = build_display_output
 run_display_startup_sweep(display_output)
 speed_estimator = BLECycleHost::SpeedEstimator.new(WHEEL_CIRCUMFERENCE_MM, RX_TIMEOUT_MS)
@@ -336,6 +359,22 @@ central.start do |role, packet, reader|
     end
   end
 
+  if csv_logger
+    begin
+      csv_logger.write_if_due(
+        now,
+        central.connected?,
+        speed_estimator.speed_kmh,
+        cadence_estimator.cadence_rpm
+      )
+    rescue => e
+      puts "log_error"
+      puts e.message
+      close_csv_logger(csv_logger)
+      csv_logger = nil
+    end
+  end
+
   if (packet || force_display) &&
      (force_display || display_due?(now, last_display_ms))
     status = display_status(
@@ -355,3 +394,5 @@ central.start do |role, packet, reader|
     last_display_ms = sent_at if sent_at
   end
 end
+
+close_csv_logger(csv_logger)
