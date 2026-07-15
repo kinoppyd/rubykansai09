@@ -101,6 +101,8 @@ constexpr uint32_t kTickDim = 0x9ba0a3;
 constexpr uint32_t kAccent = 0xd71920;
 constexpr uint32_t kNeedleShadow = 0x5a1012;
 constexpr uint32_t kText = 0x111315;
+constexpr uint32_t kIndicatorDisconnected = 0xd71920;
+constexpr uint32_t kIndicatorConnected = 0x18c76f;
 constexpr uint32_t kSimpleBlack = 0x000000;
 constexpr uint32_t kSimpleWhite = 0xffffff;
 constexpr uint32_t kSimpleRed = 0xff0000;
@@ -195,6 +197,9 @@ enum MeterMode {
 struct DisplayState {
   bool initialized;
   bool initialization_failed;
+  bool connection_indicators_drawn;
+  bool previous_speed_connected;
+  bool previous_cadence_connected;
   uint32_t animation_started_ms;
   float previous_rpm;
   float previous_simple_speed;
@@ -319,6 +324,68 @@ void draw_speed_value(GC9A01Display& display, float speed) {
   display.drawString(value, 192, 153, &fonts::Font4);
   display.setTextColor(0xd72a27, kDialInner);
   display.drawString("km/h", 192, 176, &fonts::Font0);
+}
+
+void draw_stopwatch_indicator(GC9A01Display& display, int center_x,
+                              int center_y, uint32_t color) {
+  display.drawCircle(center_x, center_y, 6, color);
+  display.drawCircle(center_x, center_y, 5, color);
+  display.drawLine(center_x - 2, center_y - 8,
+                   center_x + 2, center_y - 8, color);
+  display.drawLine(center_x, center_y - 8,
+                   center_x, center_y - 6, color);
+  display.drawLine(center_x + 5, center_y - 6,
+                   center_x + 7, center_y - 4, color);
+  display.drawLine(center_x, center_y,
+                   center_x, center_y - 4, color);
+  display.drawLine(center_x, center_y,
+                   center_x + 3, center_y + 2, color);
+  display.fillCircle(center_x, center_y, 1, color);
+}
+
+void draw_crank_indicator(GC9A01Display& display, int center_x,
+                          int center_y, uint32_t color) {
+  const int left_x = center_x - 5;
+  const int left_y = center_y + 4;
+  const int right_x = center_x + 5;
+  const int right_y = center_y - 4;
+  display.drawLine(left_x, left_y, right_x, right_y, color);
+  display.drawCircle(left_x, left_y, 3, color);
+  display.drawCircle(right_x, right_y, 3, color);
+  display.fillCircle(left_x, left_y, 1, color);
+  display.fillCircle(right_x, right_y, 1, color);
+  display.drawLine(left_x - 3, left_y + 2,
+                   left_x - 7, left_y + 2, color);
+  display.drawLine(right_x + 3, right_y - 2,
+                   right_x + 7, right_y - 2, color);
+}
+
+void draw_connection_indicators(GC9A01Display& display,
+                                bool speed_connected,
+                                bool cadence_connected) {
+  constexpr int kIndicatorTop = 187;
+  display.fillRect(97, kIndicatorTop, 47, 21, kDialInner);
+  draw_stopwatch_indicator(
+      display, 106, 198,
+      speed_connected ? kIndicatorConnected : kIndicatorDisconnected);
+  draw_crank_indicator(
+      display, 130, 198,
+      cadence_connected ? kIndicatorConnected : kIndicatorDisconnected);
+}
+
+void update_connection_indicators(GC9A01Display& display,
+                                  DisplayState& state,
+                                  bool speed_connected,
+                                  bool cadence_connected) {
+  if (state.connection_indicators_drawn &&
+      state.previous_speed_connected == speed_connected &&
+      state.previous_cadence_connected == cadence_connected) {
+    return;
+  }
+  draw_connection_indicators(display, speed_connected, cadence_connected);
+  state.connection_indicators_drawn = true;
+  state.previous_speed_connected = speed_connected;
+  state.previous_cadence_connected = cadence_connected;
 }
 
 void draw_needle(GC9A01Display& display, float rpm) {
@@ -609,7 +676,9 @@ bool begin_display(int display_index) {
   return true;
 }
 
-float render_values(int display_index, float speed_kmh, float rpm) {
+float render_values(int display_index, float speed_kmh, float rpm,
+                    bool speed_connected = false,
+                    bool cadence_connected = false) {
   if (!begin_display(display_index)) {
     return -1.0f;
   }
@@ -631,9 +700,12 @@ float render_values(int display_index, float speed_kmh, float rpm) {
   } else {
     draw_static_dial(display);
     state.active_meter = kTachometer;
+    state.connection_indicators_drawn = false;
   }
   draw_speed_value(display, speed_kmh);
   draw_needle(display, rpm);
+  update_connection_indicators(
+      display, state, speed_connected, cadence_connected);
   display.endWrite();
   state.previous_rpm = rpm;
   return speed_kmh;
@@ -738,13 +810,16 @@ mrb_value mrb_speedometer_render(mrb_state* mrb, mrb_value self) {
   mrb_int display_index;
   mrb_float speed;
   mrb_float rpm;
-  mrb_get_args(mrb, "iff", &display_index, &speed, &rpm);
+  mrb_bool speed_connected;
+  mrb_bool cadence_connected;
+  mrb_get_args(mrb, "iffbb", &display_index, &speed, &rpm,
+               &speed_connected, &cadence_connected);
   if (!valid_display_index(static_cast<int>(display_index))) {
     mrb_raise(mrb, E_ARGUMENT_ERROR, "display_index must be 0 or 1");
   }
   return mrb_float_value(mrb, render_values(
       static_cast<int>(display_index), static_cast<float>(speed),
-      static_cast<float>(rpm)));
+      static_cast<float>(rpm), speed_connected, cadence_connected));
 }
 
 mrb_value mrb_speedometer_demo_step(mrb_state* mrb, mrb_value self) {
@@ -898,7 +973,7 @@ void c_speedometer_init(mrbc_vm* vm, mrbc_value* v, int argc) {
 }
 
 void c_speedometer_render(mrbc_vm* vm, mrbc_value* v, int argc) {
-  if (argc != 3) {
+  if (argc != 5) {
     mrbc_raise(vm, MRBC_CLASS(ArgumentError), "wrong number of arguments");
     return;
   }
@@ -918,7 +993,14 @@ void c_speedometer_render(mrbc_vm* vm, mrbc_value* v, int argc) {
       !mrbc_numeric_arg(vm, v, 3, &rpm)) {
     return;
   }
-  SET_FLOAT_RETURN(render_values(display_index, speed, rpm));
+  if ((GET_TT_ARG(4) != MRBC_TT_TRUE && GET_TT_ARG(4) != MRBC_TT_FALSE) ||
+      (GET_TT_ARG(5) != MRBC_TT_TRUE && GET_TT_ARG(5) != MRBC_TT_FALSE)) {
+    mrbc_raise(vm, MRBC_CLASS(TypeError), "boolean argument required");
+    return;
+  }
+  SET_FLOAT_RETURN(render_values(display_index, speed, rpm,
+                                 GET_TT_ARG(4) == MRBC_TT_TRUE,
+                                 GET_TT_ARG(5) == MRBC_TT_TRUE));
 }
 
 void c_speedometer_demo_step(mrbc_vm* vm, mrbc_value* v, int argc) {
@@ -1040,7 +1122,7 @@ extern "C" void mrb_picoruby_gc9a01_speedometer_gem_init(mrb_state* mrb) {
   mrb_define_method(mrb, speedometer, "_init", mrb_speedometer_init,
                     MRB_ARGS_REQ(1));
   mrb_define_method(mrb, speedometer, "_render", mrb_speedometer_render,
-                    MRB_ARGS_REQ(3));
+                    MRB_ARGS_REQ(5));
   mrb_define_method(mrb, speedometer, "_demo_step",
                     mrb_speedometer_demo_step, MRB_ARGS_REQ(1));
   mrb_define_method(mrb, speedometer, "_set_brightness",

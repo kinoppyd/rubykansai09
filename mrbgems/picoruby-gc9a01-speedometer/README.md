@@ -28,11 +28,14 @@ speed_meter = GC9A01SimpleSpeedometer.new(GC9A01Display::PRIMARY)
 cadence_meter = GC9A01Speedometer.new(GC9A01Display::SECONDARY)
 
 speed_meter.render(28.4)
-cadence_meter.render(28.4, 92)
+cadence_meter.render(28.4, 92, true, true)
 ```
 
 `GC9A01Speedometer`はアナログ針にケイデンス、右下のデジタル領域に速度を
-表示します。2台はフレームバッファを持たず、それぞれの前回針位置だけを保持します。
+表示します。第3、第4引数は速度センサとケイデンスセンサの接続状態です。
+6時方向のストップウォッチが速度センサ、クランクがケイデンスセンサを示し、
+`false`では赤、`true`では緑になります。省略時はどちらも`false`です。
+2台はフレームバッファを持たず、それぞれの前回針位置だけを保持します。
 
 RP2040のFemtoRubyでも同じオブジェクトAPIを使用します。
 

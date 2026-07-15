@@ -6,6 +6,8 @@ module BLECycleHost
     STALE = 2
     SEQUENCE_GAP = 4
     SENSOR_ERROR = 8
+    SPEED_CONNECTED = 16
+    CADENCE_CONNECTED = 32
   end
 
   module DisplayAnimation
@@ -109,9 +111,18 @@ module BLECycleHost
       true
     end
 
-    def write(speed_kmh, _status, cadence_rpm = 0.0)
+    def write(speed_kmh, status, cadence_rpm = 0.0)
       @meter.render(speed_kmh)
-      @cadence_meter.render(speed_kmh, cadence_rpm) if @cadence_meter
+      if @cadence_meter
+        speed_connected = (status & DisplayStatus::SPEED_CONNECTED) != 0
+        cadence_connected = (status & DisplayStatus::CADENCE_CONNECTED) != 0
+        @cadence_meter.render(
+          speed_kmh,
+          cadence_rpm,
+          speed_connected,
+          cadence_connected
+        )
+      end
       @last_sequence = @sequence
       @sequence = (@sequence + 1) & 0xffff
       true

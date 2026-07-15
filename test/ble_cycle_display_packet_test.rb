@@ -20,6 +20,8 @@ class BLECycleDisplayPacketTest < Minitest::Test
                  BLECycleHost::DisplayStatus::SEQUENCE_GAP
     assert_equal BLECycleDisplayPacket::STATUS_SENSOR_ERROR,
                  BLECycleHost::DisplayStatus::SENSOR_ERROR
+    assert_equal 16, BLECycleHost::DisplayStatus::SPEED_CONNECTED
+    assert_equal 32, BLECycleHost::DisplayStatus::CADENCE_CONNECTED
   end
 
   def test_encode_and_decode
@@ -111,11 +113,15 @@ class BLECycleDisplayPacketTest < Minitest::Test
     cadence_meter = FakeCadenceMeter.new
     output = BLECycleHost::GC9A01DisplayOutput.new(speed_meter, cadence_meter)
 
-    assert_equal [[0.0, 0.0]], cadence_meter.rendered
-    assert_equal true, output.write(23.45, 0, 91.2)
+    assert_equal [[0.0, 0.0, false, false]], cadence_meter.rendered
+    status = BLECycleHost::DisplayStatus::SPEED_CONNECTED
+    assert_equal true, output.write(23.45, status, 91.2)
 
     assert_equal [0.0, 23.45], speed_meter.rendered
-    assert_equal [[0.0, 0.0], [23.45, 91.2]], cadence_meter.rendered
+    assert_equal [
+      [0.0, 0.0, false, false],
+      [23.45, 91.2, true, false]
+    ], cadence_meter.rendered
     assert_equal 1, output.sequence
   end
 
@@ -142,12 +148,12 @@ class BLECycleDisplayPacketTest < Minitest::Test
     BLECycleHost::DisplayAnimation.startup_sweep(output, 8, 4, 180)
 
     assert_equal [
-      [0.0, 0.0],
-      [0, 0],
-      [4, 90],
-      [8, 180],
-      [4, 90],
-      [0, 0]
+      [0.0, 0.0, false, false],
+      [0, 0, false, false],
+      [4, 90, false, false],
+      [8, 180, false, false],
+      [4, 90, false, false],
+      [0, 0, false, false]
     ], cadence_meter.rendered
   end
 
@@ -183,8 +189,14 @@ class BLECycleDisplayPacketTest < Minitest::Test
       @rendered = []
     end
 
-    def render(speed_kmh, cadence_rpm)
-      @rendered << [speed_kmh, cadence_rpm]
+    def render(speed_kmh, cadence_rpm,
+               speed_connected = false, cadence_connected = false)
+      @rendered << [
+        speed_kmh,
+        cadence_rpm,
+        speed_connected,
+        cadence_connected
+      ]
     end
   end
 end
