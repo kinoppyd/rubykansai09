@@ -72,6 +72,12 @@ end
 def display_status(central, speed_timed_out, cadence_timed_out,
                    speed_sensor_error, cadence_sensor_error)
   status = central.connected? ? BLECycleHost::DisplayStatus::BLE_CONNECTED : 0
+  if central.speed_ready?
+    status |= BLECycleHost::DisplayStatus::SPEED_CONNECTED
+  end
+  if central.cadence_ready?
+    status |= BLECycleHost::DisplayStatus::CADENCE_CONNECTED
+  end
   if speed_timed_out || cadence_timed_out
     status |= BLECycleHost::DisplayStatus::STALE
   end
@@ -224,8 +230,8 @@ central.start do |role, packet, reader|
       speed_timed_out = true
       speed_last_rx_ms = nil
       speed_sensor_error = false
-      force_display = true
     end
+    force_display = true
     last_speed_ready = speed_ready
   end
 
@@ -242,8 +248,8 @@ central.start do |role, packet, reader|
       cadence_timed_out = true
       cadence_last_rx_ms = nil
       cadence_sensor_error = false
-      force_display = true
     end
+    force_display = true
     last_cadence_ready = cadence_ready
   end
 

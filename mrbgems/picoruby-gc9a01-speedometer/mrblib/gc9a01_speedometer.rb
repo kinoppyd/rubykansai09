@@ -33,8 +33,15 @@ class GC9A01Speedometer
     _init(@display_index)
   end
 
-  def render(speed_kmh, cadence_rpm)
-    _render(@display_index, speed_kmh, cadence_rpm)
+  def render(speed_kmh, cadence_rpm,
+             speed_connected = false, cadence_connected = false)
+    _render(
+      @display_index,
+      speed_kmh,
+      cadence_rpm,
+      speed_connected,
+      cadence_connected
+    )
   end
 
   def demo_step

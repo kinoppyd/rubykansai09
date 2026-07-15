@@ -5,7 +5,7 @@ end
 
 class GC9A01Speedometer
   def initialize: (?Integer display_index) -> void
-  def render: (Numeric speed_kmh, Numeric cadence_rpm) -> Numeric
+  def render: (Numeric speed_kmh, Numeric cadence_rpm, ?bool speed_connected, ?bool cadence_connected) -> Numeric
   def demo_step: () -> Numeric
   def demo: (?Integer frame_ms) -> bot
   def brightness=: (Integer value) -> Integer

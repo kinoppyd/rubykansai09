@@ -79,6 +79,10 @@ Speed packetは`SpeedEstimator`だけへ、cadence packetは`CadenceEstimator`�
 片方が切断またはtimeoutした場合はその値だけ0へ戻し、もう片方の接続と表示更新を
 維持します。
 
+ケイデンス画面の6時方向にはBLE接続インジケーターを表示します。ストップウォッチは
+スピードセンサ、クランクはケイデンスセンサに対応します。各アイコンは未接続時に赤、
+該当するBLEスロットが`ready`になると緑へ変わり、切断時は赤へ戻ります。
+
 Host firmwareへ次のpatchを順に含めます。Sensor firmwareは2接続patchを使わず、
 BTstack slot数1を維持します。
 

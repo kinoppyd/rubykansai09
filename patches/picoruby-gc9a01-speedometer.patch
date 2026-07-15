@@ -29,7 +29,7 @@ index 57dfcd4b..5c3dae94 100644
 +  conf.gem core: 'picoruby-gc9a01-speedometer'
  end
 diff --git a/mrbgems/picoruby-r2p2/cmake/CMakeLists.txt b/mrbgems/picoruby-r2p2/cmake/CMakeLists.txt
-index 46e3e854..9651ade0 100644
+index a40df27e..0a980219 100644
 --- a/mrbgems/picoruby-r2p2/cmake/CMakeLists.txt
 +++ b/mrbgems/picoruby-r2p2/cmake/CMakeLists.txt
 @@ -15,6 +15,16 @@ set (R2P2_BUILDDATE ${CMAKE_BUILDDATE})

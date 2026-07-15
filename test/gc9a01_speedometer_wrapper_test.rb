@@ -64,16 +64,25 @@ class GC9A01SpeedometerWrapperTest < Minitest::Test
   def test_tachometer_defaults_to_primary_and_routes_all_native_calls
     meter = GC9A01Speedometer.new
 
-    meter.render(23.4, 91.0)
+    meter.render(23.4, 91.0, true, false)
     meter.brightness = 180
     assert_equal true, meter.initialized?
 
     assert_equal [
       [:init, [GC9A01Display::PRIMARY]],
-      [:render, [GC9A01Display::PRIMARY, 23.4, 91.0]],
+      [:render, [GC9A01Display::PRIMARY, 23.4, 91.0, true, false]],
       [:brightness, [GC9A01Display::PRIMARY, 180]],
       [:initialized, [GC9A01Display::PRIMARY]]
     ], meter.native_calls
+  end
+
+  def test_tachometer_connection_indicators_default_to_disconnected
+    meter = GC9A01Speedometer.new
+
+    meter.render(0.0, 0.0)
+
+    assert_equal [:render, [GC9A01Display::PRIMARY, 0.0, 0.0, false, false]],
+                 meter.native_calls.last
   end
 
   def test_simple_speedometer_can_target_secondary_display
