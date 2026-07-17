@@ -191,8 +191,8 @@ puts(CADENCE_DEVICE_ADDRESS || "name_fallback")
 
 display_output = build_display_output
 run_display_startup_sweep(display_output)
-speed_estimator = BLECycleHost::SpeedEstimator.new(WHEEL_CIRCUMFERENCE_MM, RX_TIMEOUT_MS)
-cadence_estimator = BLECycleHost::CadenceEstimator.new(RX_TIMEOUT_MS)
+speed_estimator = BLECycleHost::SpeedEstimator.new(WHEEL_CIRCUMFERENCE_MM)
+cadence_estimator = BLECycleHost::CadenceEstimator.new
 central = BLECycleHost::MultiUARTCentral.new(
   speed_address: SPEED_DEVICE_ADDRESS,
   cadence_address: CADENCE_DEVICE_ADDRESS,
@@ -289,7 +289,7 @@ central.start do |role, packet, reader|
   if packet
     if role == :speed
       speed_rx_count += 1
-      speed_estimator.update(packet, now)
+      speed_estimator.update(packet)
       speed_timed_out = false
       speed_last_rx_ms = now
       speed_sensor_error = (packet.flags & BLECyclePacket::FLAG_I2C_ERROR) != 0
@@ -297,7 +297,7 @@ central.start do |role, packet, reader|
       slot = central.speed_slot
     elsif role == :cadence
       cadence_rx_count += 1
-      cadence_estimator.update(packet, now)
+      cadence_estimator.update(packet)
       cadence_timed_out = false
       cadence_last_rx_ms = now
       cadence_sensor_error = (packet.flags & BLECyclePacket::FLAG_I2C_ERROR) != 0
