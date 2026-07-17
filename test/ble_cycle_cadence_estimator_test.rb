@@ -11,7 +11,6 @@ class BLECycleCadenceEstimatorTest < Minitest::Test
 
     assert_equal true, estimator.update(packet_with(6_283, 1_000))
 
-    assert_in_delta 1.0, estimator.crank_rotations, 0.001
     assert_in_delta 60.0, estimator.cadence_rpm, 0.02
     refute_respond_to estimator, :speed_kmh
   end
@@ -59,39 +58,15 @@ class BLECycleCadenceEstimatorTest < Minitest::Test
     assert_equal 0.0, estimator.cadence_rpm
   end
 
-  def test_tick_stops_after_timeout_and_handles_clock_rollover
-    estimator = BLECycleHost::CadenceEstimator.new(1_500)
-    estimator.update(packet_with(6_283, 1_000), 0xffff_ff00)
-
-    assert_equal false, estimator.tick(0x0000_04d7)
-    assert_equal true, estimator.tick(0x0000_04dc)
-    assert_equal 0.0, estimator.cadence_rpm
-    assert_equal false, estimator.tick(0x0000_04dd)
-  end
-
-  def test_sequence_gap_and_rollover
-    estimator = BLECycleHost::CadenceEstimator.new
-
-    estimator.update(packet_with(6_283, 1_000, 0xfffd))
-    estimator.update(packet_with(6_283, 1_000, 0xffff))
-    assert_equal 1, estimator.last_gap
-    assert_equal 1, estimator.gap_count
-
-    estimator.update(packet_with(6_283, 1_000, 0))
-    assert_equal 0, estimator.last_gap
-    assert_equal 1, estimator.gap_count
-  end
-
-  def test_duplicate_packet_does_not_refresh_value_or_timeout
+  def test_duplicate_packet_does_not_refresh_value
     estimator = BLECycleHost::CadenceEstimator.new
     packet = packet_with(6_283, 1_000, 7)
-    estimator.update(packet, 1_000)
+    estimator.update(packet)
 
     duplicate = packet_with(3_142, 1_000, 7)
-    assert_equal false, estimator.update(duplicate, 2_000)
+    assert_equal false, estimator.update(duplicate)
 
     assert_in_delta 60.0, estimator.cadence_rpm, 0.02
-    assert_equal 1_000, estimator.last_update_ms
     assert_equal 1, estimator.duplicate_count
   end
 

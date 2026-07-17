@@ -2,6 +2,9 @@
 
 最終更新: 2026-06-28 JST
 
+> **アーカイブ:** この未完了計画はCurrent Time ServiceとST7789を使う旧案であり、
+> 現行の独自cycle packet、`MultiUARTCentral`、GC9A01構成には適用しない。
+
 ## 残タスク
 
 ### Pico 2 W 2台による BLE Current Time 送受信サンプル

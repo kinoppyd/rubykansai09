@@ -41,14 +41,6 @@ module BLECycleSensor
       @uart.write(payload)
     end
 
-    def available?
-      @uart.available?
-    end
-
-    def read_nonblock(nbytes = 64)
-      @uart.read_nonblock(nbytes)
-    end
-
     def start(&block)
       @uart.start(&block)
     end

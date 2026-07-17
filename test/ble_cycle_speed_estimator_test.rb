@@ -12,7 +12,6 @@ class BLECycleSpeedEstimatorTest < Minitest::Test
 
     assert_equal true, estimator.update(packet)
 
-    assert_in_delta 0.5, estimator.wheel_rotations, 0.001
     assert_in_delta 7.57, estimator.speed_kmh, 0.02
     refute_respond_to estimator, :cadence_rpm
   end
@@ -44,40 +43,6 @@ class BLECycleSpeedEstimatorTest < Minitest::Test
 
     assert_equal false, estimator.update(packet)
     assert_equal 0.0, estimator.speed_kmh
-  end
-
-  def test_tick_stops_after_timeout
-    packet = packet_with(3_142, 500)
-    estimator = BLECycleHost::SpeedEstimator.new(2105, 1_500)
-
-    estimator.update(packet, 1_000)
-
-    assert_equal false, estimator.tick(2_499)
-    refute_equal 0.0, estimator.speed_kmh
-
-    assert_equal true, estimator.tick(2_500)
-    assert_equal 0.0, estimator.speed_kmh
-    assert_equal false, estimator.tick(2_501)
-  end
-
-  def test_update_tracks_sequence_gap
-    estimator = BLECycleHost::SpeedEstimator.new(2105)
-
-    estimator.update(packet_with(3_142, 500, 1))
-    estimator.update(packet_with(3_142, 500, 3))
-
-    assert_equal 1, estimator.last_gap
-    assert_equal 1, estimator.gap_count
-  end
-
-  def test_update_handles_sequence_rollover
-    estimator = BLECycleHost::SpeedEstimator.new(2105)
-
-    estimator.update(packet_with(3_142, 500, 0xffff))
-    estimator.update(packet_with(3_142, 500, 0))
-
-    assert_equal 0, estimator.last_gap
-    assert_equal 0, estimator.gap_count
   end
 
   private

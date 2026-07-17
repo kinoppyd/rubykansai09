@@ -99,6 +99,9 @@ RBSを拡張する。後者は前者が追加した変数とmethodを前提に�
 現在のsingle sensor検証経路は前者、`MultiUARTCentral`は後者を使う。どちらもまだ必要で
 あり、API自体は削除しない。
 
+> 後続cleanup（2026-07-17）でsingle sensor runtime経路は削除した。Firmwareのspecific
+> listener bindingは汎用API互換として残すが、現行appはwildcard listenerだけを使う。
+
 #### 統合時に維持するAPI
 
 ```ruby
@@ -245,6 +248,8 @@ picoruby-ble-preserve-state-event.patch
 現在の2sensor host appはwildcard listenerだけを使うため、specific listenerはmain hot pathには
 不要である。ただし`BLECycleHost::UARTCentral`と`custom_cycle_uart_demo`の単一接続回帰経路が
 利用する。Legacy単一接続経路を正式に廃止するまでは残す。
+
+> このlegacy経路は2026-07-17のcleanupで廃止した。
 
 ### HCI_EVENT_COMMAND_COMPLETE転送
 

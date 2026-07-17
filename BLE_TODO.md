@@ -2,6 +2,10 @@
 
 最終更新: 2026-07-10 JST
 
+> **履歴資料:** 旧CSCS実装と単一センサCentralへの参照は、当時の調査経緯を示す。
+> これらのファイルは2026-07-17のcleanupで削除され、現行実装は独自cycle packetと
+> `MultiUARTCentral`を使用する。
+
 ## 目的
 
 2台または3台の Raspberry Pi Pico 2 W を使い、CSCS/CSCP に準拠しない
