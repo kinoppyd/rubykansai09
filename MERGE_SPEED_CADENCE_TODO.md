@@ -164,13 +164,13 @@ Baseline（2026-07-17）:
 
 ### Step 5: 旧cadence appを削除
 
-- [ ] 統合appを`SENSOR_ROLE = :cadence`にして、旧appと同じ`PRCad` packetを送れることを
+- [x] 統合appを`SENSOR_ROLE = :cadence`にして、旧appと同じ`PRCad` packetを送れることを
   先に確認する。
-- [ ] `r2p2_apps/ble_cycle_cadence_sensor/home/app.rb`を削除する。
-- [ ] 空になった`r2p2_apps/ble_cycle_cadence_sensor/`を削除する。
-- [ ] `rg "ble_cycle_cadence_sensor"`で現行配置手順の参照を洗い出す。
-- [ ] Speed/cadenceの配置元が統合appだけになったことを確認する。
-- [ ] このstepを独立したcommitにする。
+- [x] `r2p2_apps/ble_cycle_cadence_sensor/home/app.rb`を削除する。
+- [x] 空になった`r2p2_apps/ble_cycle_cadence_sensor/`を削除する。
+- [x] `rg "ble_cycle_cadence_sensor"`で現行配置手順の参照を洗い出す。
+- [x] Speed/cadenceの配置元が統合appだけになったことを確認する。
+- [x] このstepを独立したcommitにする。
 
 ### Step 6: 文書を更新
 
