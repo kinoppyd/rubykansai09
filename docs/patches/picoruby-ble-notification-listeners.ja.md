@@ -99,10 +99,9 @@ RBSにも3 methodを`Integer`戻り値で宣言する。現在のC APIは登録�
 ### Listenerの併用制約
 
 Specific listenerとwildcard listenerは別のBTstack listenerとして存在する。同時に登録すると、
-同じnotificationが2回Rubyへ配送される可能性がある。Runtimeでは次のどちらか一方だけを使う。
-
-- Legacy単一接続`UARTCentral`: specific listener。
-- 2sensor `MultiUARTCentral`: wildcard listener。
+同じnotificationが2回Rubyへ配送される可能性がある。現行cycle hostは2 sensor対応の
+`MultiUARTCentral`からwildcard listenerだけを登録する。Specific listener bindingは汎用APIとの
+互換性のためfirmwareに残るが、このrepositoryのruntime codeからは使用しない。
 
 ## 他に必要な説明事項
 

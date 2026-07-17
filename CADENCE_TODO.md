@@ -84,6 +84,8 @@ cadence_rpm = abs(rotations) * 60000.0 / interval_ms
 - 既存の単一接続`BLECycleHost::UARTCentral`は回帰確認用として残す。
 - 新規multi-centralは固定2slotとし、hot pathでHashやArrayを生成しない。
 
+> 後続cleanup（2026-07-17）で2 sensor構成を正式経路とし、単一接続`UARTCentral`は削除した。
+
 各slotが保持する最小状態:
 
 - sensor role

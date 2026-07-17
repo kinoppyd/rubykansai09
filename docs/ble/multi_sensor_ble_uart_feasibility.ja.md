@@ -182,9 +182,8 @@ Upstream mruby bindingは最新masterでもpacket 1個だけを保持する。�
 `BLE::UART#start`はHCIをpower onし、共有packetをpollするblocking loopである。終了時には
 HCIをpower offする。このため、2個の`start` loopを並行して動かす設計にはなっていない。
 
-現在のcycle hostも[UARTCentral](../../lib/ble_cycle_host/uart_central.rb)が1個の
-`BLE::UART`を所有し、[runtime central patch](../../lib/ble_cycle_host/uart_central_patch.rb)
-が単一state machineを上書きしている。
+初期のsingle sensor cycle hostは1個の`BLE::UART`とruntime patchで単一state machineを
+上書きしていた。この旧実装はmulti-centralで2 sensorの動作確認が完了した後に削除した。
 
 複数接続では、`@conn_handle`などを単純なArrayに変えるだけでは足りない。Scan、
 pending connect、GATT discovery、CCCD write、ready、disconnectをslotごとに管理し、
@@ -694,10 +693,8 @@ CYW43439の2link scheduling自体が安定しない場合だけ、connectionless
 
 - [BLE_TODO.md](../../BLE_TODO.md)
 - [CADENCE_TODO.md](../../CADENCE_TODO.md)
-- [BLE::UART custom cycle demo](custom_cycle_uart_demo.ja.md)
+- [Archived BLE::UART single sensor demo](../archives/custom_cycle_uart_demo.ja.md)
 - [Dedicated cadence sensor and multi-central demo](cadence_sensor_demo.ja.md)
 - [Dual GC9A01 cycle host](dual_gc9a01_cycle_host.ja.md)
 - [Cycle host multi UART central](../../lib/ble_cycle_host/multi_uart_central.rb)
-- [Cycle host UART central](../../lib/ble_cycle_host/uart_central.rb)
-- [Cycle host runtime central patch](../../lib/ble_cycle_host/uart_central_patch.rb)
 - [Cycle sensor UART peripheral](../../lib/ble_cycle_sensor/uart_peripheral.rb)

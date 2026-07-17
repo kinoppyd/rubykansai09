@@ -2,6 +2,10 @@
 
 最終更新: 2026-07-13 JST
 
+> **アーカイブ:** これは単一センサ用Centralの初期検証記録である。記載されている
+> `BLECycleHost::UARTCentral`関連ファイルは2026-07-17に削除された。現行構成では
+> `MultiUARTCentral`を使用すること。
+
 ## 目的
 
 2台の Raspberry Pi Pico 2 W で、独自 UUID の `BLE::UART` を使い、
