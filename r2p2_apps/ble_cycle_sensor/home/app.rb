@@ -1,15 +1,24 @@
-# BLE cycle sensor app for R2P2/PicoRuby on Raspberry Pi Pico 2 W.
-# Default mode sends fake rotation data so the BLE path can be verified first.
+# Unified BLE cycle sensor app for R2P2/PicoRuby on Raspberry Pi Pico 2 W.
 
 require "machine"
+require "i2c"
 require "ble_cycle_packet"
 require "ble_cycle_sensor/uart_peripheral"
+require "mpu_6050"
+require "mpu_6050/rotation_detector"
 
-DEVICE_NAME = "PRCycle"
+SENSOR_ROLE = :speed
+
+if SENSOR_ROLE == :speed
+  DEVICE_NAME = "PRCycle"
+elsif SENSOR_ROLE == :cadence
+  DEVICE_NAME = "PRCad"
+else
+  raise ArgumentError, "SENSOR_ROLE must be :speed or :cadence"
+end
+
 DEBUG_LOG = true
 DEBUG_BLE = true
-
-USE_MPU = false
 
 I2C_UNIT = :RP2040_I2C1
 I2C_FREQUENCY = 400_000
@@ -25,23 +34,30 @@ CALIBRATION_SAMPLES = 200
 CALIBRATION_WAIT_MS = 5
 
 NOTIFY_PERIOD_MS = 250
-FAKE_DELTA_ANGLE_MRAD = 1571
-FULL_ROTATION_MRAD = 6283
 MAX_CONSECUTIVE_I2C_ERRORS = 3
 
-DEBUG_LED = GPIO.new(25, GPIO::OUT)
+DEBUG_LED_ENABLED = true
+DEBUG_LED_PIN = 25
+DEBUG_LED_ACTIVE = 1
+DEBUG_LED_INACTIVE = DEBUG_LED_ACTIVE == 1 ? 0 : 1
+DEBUG_LED_PULSE_MS = 30
+DEBUG_LED = DEBUG_LED_ENABLED ? GPIO.new(DEBUG_LED_PIN, GPIO::OUT) : nil
+
+def debug_led_write(active)
+  return unless DEBUG_LED
+  DEBUG_LED.write(active ? DEBUG_LED_ACTIVE : DEBUG_LED_INACTIVE)
+end
 
 def blink(&blk)
-  DEBUG_LED.write(1)
-  blk.call
-  DEBUG_LED.write(0)
+  debug_led_write(true)
+  begin
+    blk.call
+  ensure
+    debug_led_write(false)
+  end
 end
 
-if USE_MPU
-  require "i2c"
-  require "mpu_6050"
-  require "mpu_6050/rotation_detector"
-end
+debug_led_write(false)
 
 def now_ms
   if Object.const_defined?(:Machine)
@@ -66,14 +82,11 @@ end
 
 blink do
   puts "BLE cycle sensor"
-  puts "mode"
-  puts(USE_MPU ? "mpu" : "fake")
+  puts "sensor_role"
+  puts SENSOR_ROLE
 end
 
-mpu = nil
-detector = nil
-
-if USE_MPU
+begin
   i2c = I2C.new(
     unit: I2C_UNIT,
     frequency: I2C_FREQUENCY,
@@ -92,6 +105,10 @@ if USE_MPU
     ACCEL_PHASE_MIN_G
   )
   puts "mpu_ready"
+rescue IOError => error
+  puts "mpu_init_failed"
+  puts error.message
+  raise
 end
 
 ble = BLECycleSensor::UARTPeripheral.new(DEVICE_NAME)
@@ -102,17 +119,22 @@ sequence = 0
 first_packet = true
 last_send_ms = nil
 delta_angle_mrad = 0.0
-fake_total_angle_mrad = 0
 total_revolutions = 0
 sample_count = 0
-i2c_error_count = 0
 i2c_error_interval = 0
 consecutive_i2c_errors = 0
 interval_flags = 0
 last_connected = false
+led_pulse_started_ms = nil
 
 ble.start do
   now = now_ms
+  if led_pulse_started_ms &&
+     interval_ms(now, led_pulse_started_ms) >= DEBUG_LED_PULSE_MS
+    debug_led_write(false)
+    led_pulse_started_ms = nil
+  end
+
   connected = ble.connected?
   if connected != last_connected
     puts "ble_connected"
@@ -123,26 +145,21 @@ ble.start do
     delta_angle_mrad = 0.0 if connected
   end
 
-  if USE_MPU
-    begin
-      sample = mpu.sample(now)
-      event = detector.update(sample)
-      delta_angle_mrad += detector.delta_angle * 1000.0
-      sample_count += 1
-      interval_flags |= BLECyclePacket::FLAG_ROTATION_CHANGED if event
-      interval_flags |= BLECyclePacket::FLAG_SATURATED if detector.saturated?
-      interval_flags |= BLECyclePacket::FLAG_DT_SKIPPED if detector.dt_skipped?
-      total_revolutions = detector.count
-      consecutive_i2c_errors = 0
-    rescue IOError
-      i2c_error_count += 1
-      i2c_error_interval += 1
-      consecutive_i2c_errors += 1
-      interval_flags |= BLECyclePacket::FLAG_I2C_ERROR
-      raise if consecutive_i2c_errors >= MAX_CONSECUTIVE_I2C_ERRORS
-    end
-  else
+  begin
+    sample = mpu.sample(now)
+    event = detector.update(sample)
+    delta_angle_mrad += detector.delta_angle * 1000.0
     sample_count += 1
+    interval_flags |= BLECyclePacket::FLAG_ROTATION_CHANGED if event
+    interval_flags |= BLECyclePacket::FLAG_SATURATED if detector.saturated?
+    interval_flags |= BLECyclePacket::FLAG_DT_SKIPPED if detector.dt_skipped?
+    total_revolutions = detector.count
+    consecutive_i2c_errors = 0
+  rescue IOError
+    i2c_error_interval += 1
+    consecutive_i2c_errors += 1
+    interval_flags |= BLECyclePacket::FLAG_I2C_ERROR
+    raise if consecutive_i2c_errors >= MAX_CONSECUTIVE_I2C_ERRORS
   end
 
   next unless connected
@@ -153,18 +170,7 @@ ble.start do
   flags = interval_flags | BLECyclePacket::FLAG_ANGLE_VALID
   flags |= BLECyclePacket::FLAG_FIRST if first_packet
 
-  if USE_MPU
-    angle_to_send = first_packet ? 0 : delta_angle_mrad.to_i
-  else
-    if first_packet
-      angle_to_send = 0
-    else
-      fake_total_angle_mrad += FAKE_DELTA_ANGLE_MRAD
-      total_revolutions = fake_total_angle_mrad / FULL_ROTATION_MRAD
-      angle_to_send = FAKE_DELTA_ANGLE_MRAD
-      flags |= BLECyclePacket::FLAG_ROTATION_CHANGED
-    end
-  end
+  angle_to_send = first_packet ? 0 : delta_angle_mrad.to_i
 
   BLECyclePacket.encode_into(
     payload,
@@ -177,9 +183,13 @@ ble.start do
     status_value(sample_count, i2c_error_interval)
   )
   ble.write(payload)
+  debug_led_write(true)
+  led_pulse_started_ms = now
 
   if DEBUG_LOG
     puts "TX"
+    puts "sensor_role"
+    puts SENSOR_ROLE
     puts "seq"
     puts sequence
     puts "time_ms"
