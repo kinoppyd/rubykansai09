@@ -129,13 +129,13 @@ Baseline（2026-07-17）:
 
 ### Step 2: Role設定を統合appへ追加
 
-- [ ] `r2p2_apps/ble_cycle_sensor/home/app.rb`へ`SENSOR_ROLE`を追加する。
-- [ ] `:speed`を`PRCycle`、`:cadence`を`PRCad`へ対応付ける。
-- [ ] 未知のroleを起動時に拒否する。
-- [ ] 起動logとTX logへroleを出力する。
-- [ ] Packet UUID、packet version/size、notification周期を変更していないことを確認する。
-- [ ] `mrbc -c`とhost Ruby testを実行する。
-- [ ] このstepを独立したcommitにする。
+- [x] `r2p2_apps/ble_cycle_sensor/home/app.rb`へ`SENSOR_ROLE`を追加する。
+- [x] `:speed`を`PRCycle`、`:cadence`を`PRCad`へ対応付ける。
+- [x] 未知のroleを起動時に拒否する。
+- [x] 起動logとTX logへroleを出力する。
+- [x] Packet UUID、packet version/size、notification周期を変更していないことを確認する。
+- [x] `mrbc -c`とhost Ruby testを実行する。
+- [x] このstepを独立したcommitにする。
 
 ### Step 3: Fake modeを削除
 

@@ -1,11 +1,19 @@
-# BLE cycle sensor app for R2P2/PicoRuby on Raspberry Pi Pico 2 W.
-# Default mode sends fake rotation data so the BLE path can be verified first.
+# Unified BLE cycle sensor app for R2P2/PicoRuby on Raspberry Pi Pico 2 W.
 
 require "machine"
 require "ble_cycle_packet"
 require "ble_cycle_sensor/uart_peripheral"
 
-DEVICE_NAME = "PRCycle"
+SENSOR_ROLE = :speed
+
+if SENSOR_ROLE == :speed
+  DEVICE_NAME = "PRCycle"
+elsif SENSOR_ROLE == :cadence
+  DEVICE_NAME = "PRCad"
+else
+  raise ArgumentError, "SENSOR_ROLE must be :speed or :cadence"
+end
+
 DEBUG_LOG = true
 DEBUG_BLE = true
 
@@ -66,6 +74,8 @@ end
 
 blink do
   puts "BLE cycle sensor"
+  puts "sensor_role"
+  puts SENSOR_ROLE
   puts "mode"
   puts(USE_MPU ? "mpu" : "fake")
 end
@@ -180,6 +190,8 @@ ble.start do
 
   if DEBUG_LOG
     puts "TX"
+    puts "sensor_role"
+    puts SENSOR_ROLE
     puts "seq"
     puts sequence
     puts "time_ms"
