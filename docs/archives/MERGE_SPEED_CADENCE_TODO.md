@@ -1,4 +1,4 @@
-# Speed/Cadence sensor統合TODO
+# Speed/Cadence sensor統合TODO（実装完了・実機確認待ち）
 
 最終更新: 2026-07-17 JST
 
@@ -186,12 +186,22 @@ Baseline（2026-07-17）:
 
 ### Step 7: 自動検証
 
-- [ ] 全testを実行する。
-- [ ] `lib/`、`examples/`、`r2p2_apps/`の全RubyファイルをPicoRubyの`mrbc -c`で検査する。
-- [ ] `scripts/verify_picoruby_patches.sh sensor`をclean PicoRuby treeで実行する。
-- [ ] Host protocolとpacket形式に変更がないことをpacket/multi Central testで確認する。
-- [ ] `git diff --check`を実行する。
-- [ ] fake modeと旧cadence appへの現行参照が0件であることを`rg`で確認する。
+- [x] 全testを実行する。
+- [x] `lib/`、`examples/`、`r2p2_apps/`の全RubyファイルをPicoRubyの`mrbc -c`で検査する。
+- [x] `scripts/verify_picoruby_patches.sh sensor`をclean PicoRuby treeで実行する。
+- [x] Host protocolとpacket形式に変更がないことをpacket/multi Central testで確認する。
+- [x] `git diff --check`を実行する。
+- [x] fake modeと旧cadence appへの現行参照が0件であることを`rg`で確認する。
+
+最終自動検証（2026-07-17）:
+
+- Test: 66 runs、275 assertions、0 failures、0 errors
+- `mrbc -c`: `lib/`、`examples/`、`r2p2_apps/`の全Rubyファイルで成功
+- `SENSOR_ROLE = :cadence`へ置換した検査用appも`mrbc -c`成功
+- Patch chain: sensor、host、host-displayの全profileで成功
+- Packet/Multi Central: 18 runs、79 assertions、0 failures、0 errors
+- `git diff --check`: 問題なし
+- `USE_MPU`、fake生成定数、旧cadence appへの現行参照: 0件
 
 ### Step 8: 実機検証
 
@@ -209,12 +219,15 @@ Baseline（2026-07-17）:
 
 ## 完了条件
 
-- [ ] Sensor appの実装元が1ファイルだけになっている。
-- [ ] `SENSOR_ROLE`以外のコード差分なしでspeed/cadenceを作り分けられる。
-- [ ] Fake modeとfake生成値がsensor runtimeおよび現行手順からなくなっている。
-- [ ] MPU-6050実機がない状態でcycle packetを送信しない。
+- [x] Sensor appの実装元が1ファイルだけになっている。
+- [x] `SENSOR_ROLE`以外のコード差分なしでspeed/cadenceを作り分けられる。
+- [x] Fake modeとfake生成値がsensor runtimeおよび現行手順からなくなっている。
+- [x] MPU-6050の初期化完了前にBLE advertisingとcycle packet送信へ進まない。
 - [ ] BLE notificationごとにdebug LEDが目視可能な時間だけ点灯する。
 - [ ] 250 ms送信周期、packet v1、hostの2 sensor接続、dual meter表示が回帰していない。
+
+実装と自動検証は完了した。未チェック項目はPico 2 W、MPU-6050、GP25 LED、Host、
+dual GC9A01を使う実機検証であり、コード上の未実装項目ではない。
 
 ## Memoryと実装上の注意
 
