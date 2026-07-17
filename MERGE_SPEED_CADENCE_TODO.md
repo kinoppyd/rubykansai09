@@ -174,15 +174,15 @@ Baseline（2026-07-17）:
 
 ### Step 6: 文書を更新
 
-- [ ] `docs/ble/cadence_sensor_demo.ja.md`の配置元を統合appへ変更する。
-- [ ] 同文書からfake modeの確認手順、`USE_MPU`の切替、fake期待値を削除する。
-- [ ] BLE単体検証はMPU-6050実機接続を前提とする手順へ変更する。
-- [ ] Speed/cadence用`.mrb`の作り分けは`SENSOR_ROLE`だけで行うことを記載する。
-- [ ] LED pin、active level、送信時の点灯条件を記載する。
-- [ ] MPU未接続、calibration失敗、I2C error時の期待logを記載する。
-- [ ] `CADENCE_TODO.md`など完了済み計画は履歴として書き換えず、必要なら後続統合への注記だけを
+- [x] `docs/ble/cadence_sensor_demo.ja.md`の配置元を統合appへ変更する。
+- [x] 同文書からfake modeの確認手順、`USE_MPU`の切替、fake期待値を削除する。
+- [x] BLE単体検証はMPU-6050実機接続を前提とする手順へ変更する。
+- [x] Speed/cadence用`.mrb`の作り分けは`SENSOR_ROLE`だけで行うことを記載する。
+- [x] LED pin、active level、送信時の点灯条件を記載する。
+- [x] MPU未接続、calibration失敗、I2C error時の期待logを記載する。
+- [x] `CADENCE_TODO.md`など完了済み計画は履歴として書き換えず、必要なら後続統合への注記だけを
   追加する。
-- [ ] このstepを独立したcommitにする。
+- [x] このstepを独立したcommitにする。
 
 ### Step 7: 自動検証
 

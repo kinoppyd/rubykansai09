@@ -1,6 +1,6 @@
 # 専用ケイデンスセンサの確認手順
 
-最終更新: 2026-07-13 JST
+最終更新: 2026-07-17 JST
 
 ## 目的
 
@@ -18,7 +18,7 @@ GAP nameは`PRCad`で、packet形式はスピードセンサと同じ
 | SDA | GP2 | I2C1 SDA |
 | SCL | GP3 | I2C1 SCL |
 
-`r2p2_apps/ble_cycle_cadence_sensor/home/app.rb`先頭の`I2C_UNIT`、
+`r2p2_apps/ble_cycle_sensor/home/app.rb`先頭の`I2C_UNIT`、
 `SDA_PIN`、`SCL_PIN`を変更すれば別のI2C配線も使用できる。
 
 ## R2P2への配置
@@ -26,7 +26,7 @@ GAP nameは`PRCad`で、packet形式はスピードセンサと同じ
 `/home/app.rb`として配置するsource:
 
 ```text
-r2p2_apps/ble_cycle_cadence_sensor/home/app.rb
+r2p2_apps/ble_cycle_sensor/home/app.rb
 ```
 
 `/lib`へ配置するsource:
@@ -38,44 +38,63 @@ lib/mpu_6050.rb
 lib/mpu_6050/rotation_detector.rb
 ```
 
-`machine`、`i2c`、`BLE::UART`はUF2に含まれるmrbgemを使う。このリポジトリには
-転送前のRuby sourceだけを置き、`.mrb`はcommitしない。
+`SENSOR_ROLE = :cadence`へ変更してから`app.mrb`を生成する。`machine`、`i2c`、
+`BLE::UART`はUF2に含まれるmrbgemを使う。このリポジトリには転送前のRuby sourceだけを
+置き、`.mrb`はcommitしない。
 
-## BLEだけを先に確認する
+## 起動とBLEを確認する
 
-1. `app.rb`の`USE_MPU`を一時的に`false`へ変更する。
-2. Pico 2 Wへ配置して起動する。
-3. serial logで`PRCad`のaddressを記録する。
-4. 単一接続hostまたはBLE scannerから接続する。
-5. `TX`が約250 ms間隔で増え、2 packet目以降の`delta_mrad`が`1571`に
-   なることを確認する。これは約60 rpm相当の生成値である。
+1. 電源を切ってMPU-6050を配線する。
+2. `SENSOR_ROLE = :cadence`にした`app.mrb`と必要なlibraryを配置する。
+3. 静止した状態で起動し、`calibrating`中はセンサを動かさない。
+4. `mpu_ready`の後にadvertisingが始まることを確認する。
+5. Serial logで`PRCad`のaddressを記録する。
+6. Hostから接続し、`TX`が約250 ms間隔で増えることを確認する。
+7. クランクを回し、`delta_mrad`、`total_rev`、`flags`の変化を確認する。
 
 期待する起動ログ:
 
 ```text
-BLE cadence sensor
+BLE cycle sensor
 sensor_role
 cadence
-mode
-fake
+calibrating
+mpu_ready
 UART Peripheral up on: `88:A2:9E:xx:xx:xx`
 Advertising started
 ```
 
-## MPU-6050で確認する
+MPU-6050が未接続、またはI2C初期化に失敗した場合はfake値へfallbackせず、次を出して
+advertising前に停止する。
 
-1. 電源を切ってMPU-6050を配線する。
-2. `USE_MPU = true`へ戻す。
-3. 静止した状態で起動し、`calibrating`中はセンサを動かさない。
-4. `mpu_ready`と`Advertising started`を確認する。
-5. 接続後、クランクを回して`delta_mrad`、`total_rev`、`flags`の変化を確認する。
-6. 1回転の向きや計数が合わなければ、app先頭の`AXIS`と`DIRECTION`を調整する。
-7. 静止時の揺れを回転として拾う場合は`GYRO_DEADBAND_DPS`を調整する。
+```text
+mpu_init_failed
+I2C error message
+```
+
+## MPU-6050の調整
+
+1. 1回転の向きや計数が合わなければ、app先頭の`AXIS`と`DIRECTION`を調整する。
+2. 静止時の揺れを回転として拾う場合は`GYRO_DEADBAND_DPS`を調整する。
+3. Speedとcadenceで取付方向が異なる場合は、role別の定数選択を統合app内へ追加する。
 
 `FLAG_FIRST`、`FLAG_ANGLE_VALID`、`FLAG_ROTATION_CHANGED`、
 `FLAG_I2C_ERROR`、`FLAG_SATURATED`、`FLAG_DT_SKIPPED`の意味は
 スピードセンサと共通である。連続I2C errorが
 `MAX_CONSECUTIVE_I2C_ERRORS`へ達した場合は処理を停止する。
+
+## Debug LED
+
+統合appは既定でGP25をactive highのdebug LEDとして使う。起動時に一度点灯し、BLE接続後は
+20 byte packetを送るたびに約30 ms点灯する。Advertising中や未接続時は送信パルスを出さない。
+
+- 使用pinは`DEBUG_LED_PIN`で変更する。
+- Active levelは`DEBUG_LED_ACTIVE`で変更する。
+- 点灯時間は`DEBUG_LED_PULSE_MS`で変更する。
+- LEDを使わない場合は`DEBUG_LED_ENABLED = false`にする。
+- 外付けLEDを使う場合は適切な直列抵抗を入れる。
+
+点灯処理は`sleep`を使わない。LED点灯中もMPU samplingとBLE event処理を継続する。
 
 ## 2センサhostへ接続するときの記録
 
@@ -99,7 +118,7 @@ Pico SDK 2.2.0 (`a1438dff1d38bd9c65dbd693f0e5db4b9ae91779`)からbuildした。
 | Pico 2 W | UF2 | 用途 |
 | --- | --- | --- |
 | Speed sensor | `R2P2-PICORUBY-PICO2_W-CYCLE-SENSOR-20260711-b0c1c482.uf2` | Clean、BTstack 1 connection |
-| Cadence sensor | speedと同じsensor UF2 | `/home` appだけを`PRCad`用に変える |
+| Cadence sensor | speedと同じsensor UF2 | 統合appを`SENSOR_ROLE = :cadence`にする |
 | Host、画面なし | `R2P2-PICORUBY-PICO2_W-CYCLE-HOST-2CONN-20260711-b0c1c482.uf2` | BLEだけの切り分け用 |
 | Host、2画面 | `R2P2-PICORUBY-PICO2_W-CYCLE-HOST-2CONN-DUAL-GC9A01-20260711-b0c1c482.uf2` | BLE + speed/cadence GC9A01 |
 
@@ -126,22 +145,22 @@ lib/mpu_6050.rb                              -> /lib/mpu_6050.mrb
 lib/mpu_6050/rotation_detector.rb            -> /lib/mpu_6050/rotation_detector.mrb
 ```
 
-既存speed sensor appの`DEVICE_NAME = "PRCycle"`と、実機で調整済みのMPU設定を維持する。
+統合appを`SENSOR_ROLE = :speed`にする。これによりGAP nameは`PRCycle`になる。
 
 ## Cadence sensorへのR2P2配置
 
 Sourceと転送先:
 
 ```text
-r2p2_apps/ble_cycle_cadence_sensor/home/app.rb -> /home/app.mrb
-lib/ble_cycle_packet.rb                        -> /lib/ble_cycle_packet.mrb
-lib/ble_cycle_sensor/uart_peripheral.rb        -> /lib/ble_cycle_sensor/uart_peripheral.mrb
-lib/mpu_6050.rb                                -> /lib/mpu_6050.mrb
-lib/mpu_6050/rotation_detector.rb              -> /lib/mpu_6050/rotation_detector.mrb
+r2p2_apps/ble_cycle_sensor/home/app.rb       -> /home/app.mrb
+lib/ble_cycle_packet.rb                      -> /lib/ble_cycle_packet.mrb
+lib/ble_cycle_sensor/uart_peripheral.rb      -> /lib/ble_cycle_sensor/uart_peripheral.mrb
+lib/mpu_6050.rb                              -> /lib/mpu_6050.mrb
+lib/mpu_6050/rotation_detector.rb            -> /lib/mpu_6050/rotation_detector.mrb
 ```
 
-FakeでBLEだけを確認する場合は`USE_MPU = false`、MPU-6050を使う場合は
-`USE_MPU = true`にしてから転送時にcompileする。
+統合appを`SENSOR_ROLE = :cadence`にする。これによりGAP nameは`PRCad`になる。
+Speed/cadenceともMPU-6050は必須であり、fake modeはない。
 
 ## Multi-central hostへのR2P2配置
 
@@ -279,14 +298,15 @@ cadence_rpm
 
 ## 実機検証順
 
-1. 新sensor UF2 + 既存speed app 1台だけでhostのspeed slotをreadyにする。
-2. Cadence appを`USE_MPU = false`にし、cadence slotと約60 rpm表示を確認する。
+1. 統合appを`:speed`にした実機1台でhostのspeed slotをreadyにする。
+2. 統合appを`:cadence`にした実機1台でhostのcadence slotをreadyにする。
 3. 両sensorを接続し、handleが2個あり、各`interval_ms`が200..350 ms程度か確認する。
-4. Cadenceを`USE_MPU = true`へ戻し、静止0 rpm、約1回転/秒で約60 rpmを確認する。
-5. Speedだけを再起動し、cadence RXと画面が継続することを確認する。
-6. Cadenceだけを再起動し、speed RXと画面が継続することを確認する。
-7. Host先行、sensor先行、speed/cadence逆順の各起動順を確認する。
-8. `DEBUG_RX = false`、`DEBUG_DISPLAY = false`にして30分、その後可能なら2時間動作させる。
-9. `NoMemoryError`、unexpected disconnect、sequence gapを記録する。
+4. 静止時は0 rpm、クランク約1回転/秒で約60 rpmになることを確認する。
+5. 各TXで対応するsensorのdebug LEDが短く点灯することを確認する。
+6. Speedだけを再起動し、cadence RXと画面が継続することを確認する。
+7. Cadenceだけを再起動し、speed RXと画面が継続することを確認する。
+8. Host先行、sensor先行、speed/cadence逆順の各起動順を確認する。
+9. `DEBUG_RX = false`、`DEBUG_DISPLAY = false`にして30分、その後可能なら2時間動作させる。
+10. `NoMemoryError`、unexpected disconnect、sequence gapを記録する。
 
 実機結果を得るまでは`CADENCE_TODO.md`の段階的検証と長時間検証を完了扱いにしない。

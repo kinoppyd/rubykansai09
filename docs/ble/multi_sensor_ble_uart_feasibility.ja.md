@@ -575,14 +575,12 @@ GC9A01実装はfull framebufferを持たないため、2画面化で大きなfra
 
 これらは実装後、次の順に確認する。
 
-1. 新host firmware + speed sensor 1台の回帰。
-2. Cadence sensor 1台だけのfake notification。
-3. Speed real + cadence fake。
-4. Speed fake + cadence real。
-5. Speed real + cadence real。
-6. 片側ずつのpower cycle。
-7. 起動順を変えた再接続。
-8. 30分、可能なら2時間の連続試験。
+1. 新host firmware + MPU-6050 speed sensor 1台の回帰。
+2. MPU-6050 cadence sensor 1台の接続とnotification。
+3. Speed/cadence実機の同時接続。
+4. 片側ずつのpower cycle。
+5. 起動順を変えた再接続。
+6. 30分、可能なら2時間の連続試験。
 
 ## 主なriskと対策
 
