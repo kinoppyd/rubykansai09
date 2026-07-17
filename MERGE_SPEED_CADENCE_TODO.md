@@ -139,16 +139,16 @@ Baseline（2026-07-17）:
 
 ### Step 3: Fake modeを削除
 
-- [ ] `USE_MPU`とすべての条件分岐を削除する。
-- [ ] fake angle生成用の定数と状態を削除する。
-- [ ] MPU関連libraryを無条件でrequire、初期化する。
-- [ ] 初回packetのangle 0、以降の実測delta angleという既存仕様を維持する。
-- [ ] MPU未接続時にadvertisingへ進まず、起動失敗がserialで判別できることを確認する。
-- [ ] 連続I2C error、flags、statusの意味が変わっていないことを確認する。
-- [ ] `rg "USE_MPU|FAKE_DELTA_ANGLE|fake_total_angle|mode.*fake"`で現行sensor codeの
+- [x] `USE_MPU`とすべての条件分岐を削除する。
+- [x] fake angle生成用の定数と状態を削除する。
+- [x] MPU関連libraryを無条件でrequire、初期化する。
+- [x] 初回packetのangle 0、以降の実測delta angleという既存仕様を維持する。
+- [x] MPU未接続時にadvertisingへ進まず、起動失敗がserialで判別できることを確認する。
+- [x] 連続I2C error、flags、statusの意味が変わっていないことを確認する。
+- [x] `rg "USE_MPU|FAKE_DELTA_ANGLE|fake_total_angle|mode.*fake"`で現行sensor codeの
   fake参照が0件になることを確認する。
-- [ ] `mrbc -c`を実行する。
-- [ ] このstepを独立したcommitにする。
+- [x] `mrbc -c`を実行する。
+- [x] このstepを独立したcommitにする。
 
 ### Step 4: BLE送信LEDを実装
 

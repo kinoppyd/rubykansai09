@@ -1,8 +1,11 @@
 # Unified BLE cycle sensor app for R2P2/PicoRuby on Raspberry Pi Pico 2 W.
 
 require "machine"
+require "i2c"
 require "ble_cycle_packet"
 require "ble_cycle_sensor/uart_peripheral"
+require "mpu_6050"
+require "mpu_6050/rotation_detector"
 
 SENSOR_ROLE = :speed
 
@@ -16,8 +19,6 @@ end
 
 DEBUG_LOG = true
 DEBUG_BLE = true
-
-USE_MPU = false
 
 I2C_UNIT = :RP2040_I2C1
 I2C_FREQUENCY = 400_000
@@ -33,8 +34,6 @@ CALIBRATION_SAMPLES = 200
 CALIBRATION_WAIT_MS = 5
 
 NOTIFY_PERIOD_MS = 250
-FAKE_DELTA_ANGLE_MRAD = 1571
-FULL_ROTATION_MRAD = 6283
 MAX_CONSECUTIVE_I2C_ERRORS = 3
 
 DEBUG_LED = GPIO.new(25, GPIO::OUT)
@@ -43,12 +42,6 @@ def blink(&blk)
   DEBUG_LED.write(1)
   blk.call
   DEBUG_LED.write(0)
-end
-
-if USE_MPU
-  require "i2c"
-  require "mpu_6050"
-  require "mpu_6050/rotation_detector"
 end
 
 def now_ms
@@ -76,14 +69,9 @@ blink do
   puts "BLE cycle sensor"
   puts "sensor_role"
   puts SENSOR_ROLE
-  puts "mode"
-  puts(USE_MPU ? "mpu" : "fake")
 end
 
-mpu = nil
-detector = nil
-
-if USE_MPU
+begin
   i2c = I2C.new(
     unit: I2C_UNIT,
     frequency: I2C_FREQUENCY,
@@ -102,6 +90,10 @@ if USE_MPU
     ACCEL_PHASE_MIN_G
   )
   puts "mpu_ready"
+rescue IOError => error
+  puts "mpu_init_failed"
+  puts error.message
+  raise
 end
 
 ble = BLECycleSensor::UARTPeripheral.new(DEVICE_NAME)
@@ -112,10 +104,8 @@ sequence = 0
 first_packet = true
 last_send_ms = nil
 delta_angle_mrad = 0.0
-fake_total_angle_mrad = 0
 total_revolutions = 0
 sample_count = 0
-i2c_error_count = 0
 i2c_error_interval = 0
 consecutive_i2c_errors = 0
 interval_flags = 0
@@ -133,26 +123,21 @@ ble.start do
     delta_angle_mrad = 0.0 if connected
   end
 
-  if USE_MPU
-    begin
-      sample = mpu.sample(now)
-      event = detector.update(sample)
-      delta_angle_mrad += detector.delta_angle * 1000.0
-      sample_count += 1
-      interval_flags |= BLECyclePacket::FLAG_ROTATION_CHANGED if event
-      interval_flags |= BLECyclePacket::FLAG_SATURATED if detector.saturated?
-      interval_flags |= BLECyclePacket::FLAG_DT_SKIPPED if detector.dt_skipped?
-      total_revolutions = detector.count
-      consecutive_i2c_errors = 0
-    rescue IOError
-      i2c_error_count += 1
-      i2c_error_interval += 1
-      consecutive_i2c_errors += 1
-      interval_flags |= BLECyclePacket::FLAG_I2C_ERROR
-      raise if consecutive_i2c_errors >= MAX_CONSECUTIVE_I2C_ERRORS
-    end
-  else
+  begin
+    sample = mpu.sample(now)
+    event = detector.update(sample)
+    delta_angle_mrad += detector.delta_angle * 1000.0
     sample_count += 1
+    interval_flags |= BLECyclePacket::FLAG_ROTATION_CHANGED if event
+    interval_flags |= BLECyclePacket::FLAG_SATURATED if detector.saturated?
+    interval_flags |= BLECyclePacket::FLAG_DT_SKIPPED if detector.dt_skipped?
+    total_revolutions = detector.count
+    consecutive_i2c_errors = 0
+  rescue IOError
+    i2c_error_interval += 1
+    consecutive_i2c_errors += 1
+    interval_flags |= BLECyclePacket::FLAG_I2C_ERROR
+    raise if consecutive_i2c_errors >= MAX_CONSECUTIVE_I2C_ERRORS
   end
 
   next unless connected
@@ -163,18 +148,7 @@ ble.start do
   flags = interval_flags | BLECyclePacket::FLAG_ANGLE_VALID
   flags |= BLECyclePacket::FLAG_FIRST if first_packet
 
-  if USE_MPU
-    angle_to_send = first_packet ? 0 : delta_angle_mrad.to_i
-  else
-    if first_packet
-      angle_to_send = 0
-    else
-      fake_total_angle_mrad += FAKE_DELTA_ANGLE_MRAD
-      total_revolutions = fake_total_angle_mrad / FULL_ROTATION_MRAD
-      angle_to_send = FAKE_DELTA_ANGLE_MRAD
-      flags |= BLECyclePacket::FLAG_ROTATION_CHANGED
-    end
-  end
+  angle_to_send = first_packet ? 0 : delta_angle_mrad.to_i
 
   BLECyclePacket.encode_into(
     payload,
