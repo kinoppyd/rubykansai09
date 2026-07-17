@@ -36,13 +36,28 @@ CALIBRATION_WAIT_MS = 5
 NOTIFY_PERIOD_MS = 250
 MAX_CONSECUTIVE_I2C_ERRORS = 3
 
-DEBUG_LED = GPIO.new(25, GPIO::OUT)
+DEBUG_LED_ENABLED = true
+DEBUG_LED_PIN = 25
+DEBUG_LED_ACTIVE = 1
+DEBUG_LED_INACTIVE = DEBUG_LED_ACTIVE == 1 ? 0 : 1
+DEBUG_LED_PULSE_MS = 30
+DEBUG_LED = DEBUG_LED_ENABLED ? GPIO.new(DEBUG_LED_PIN, GPIO::OUT) : nil
+
+def debug_led_write(active)
+  return unless DEBUG_LED
+  DEBUG_LED.write(active ? DEBUG_LED_ACTIVE : DEBUG_LED_INACTIVE)
+end
 
 def blink(&blk)
-  DEBUG_LED.write(1)
-  blk.call
-  DEBUG_LED.write(0)
+  debug_led_write(true)
+  begin
+    blk.call
+  ensure
+    debug_led_write(false)
+  end
 end
+
+debug_led_write(false)
 
 def now_ms
   if Object.const_defined?(:Machine)
@@ -110,9 +125,16 @@ i2c_error_interval = 0
 consecutive_i2c_errors = 0
 interval_flags = 0
 last_connected = false
+led_pulse_started_ms = nil
 
 ble.start do
   now = now_ms
+  if led_pulse_started_ms &&
+     interval_ms(now, led_pulse_started_ms) >= DEBUG_LED_PULSE_MS
+    debug_led_write(false)
+    led_pulse_started_ms = nil
+  end
+
   connected = ble.connected?
   if connected != last_connected
     puts "ble_connected"
@@ -161,6 +183,8 @@ ble.start do
     status_value(sample_count, i2c_error_interval)
   )
   ble.write(payload)
+  debug_led_write(true)
+  led_pulse_started_ms = now
 
   if DEBUG_LOG
     puts "TX"

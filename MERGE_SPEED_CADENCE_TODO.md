@@ -152,15 +152,15 @@ Baseline（2026-07-17）:
 
 ### Step 4: BLE送信LEDを実装
 
-- [ ] Speed sensor側のdebug LED初期化とactive level制御を統合appへ残す。
-- [ ] LED ON、LED OFF、送信パルス開始、期限到達時OFFを小さいhelperへ整理する。
-- [ ] `ble.write(payload)`ごとに送信パルスを開始する。
-- [ ] `sleep`なしでLEDが消灯することを確認する。
+- [x] Speed sensor側のdebug LED初期化とactive level制御を統合appへ残す。
+- [x] LED ON、LED OFF、送信パルス開始、期限到達時OFFを小さいhelperへ整理する。
+- [x] `ble.write(payload)`ごとに送信パルスを開始する。
+- [x] `sleep`なしでLEDが消灯することを確認する。
 - [ ] LED点灯中もMPU samplingと250 ms notificationが継続することを確認する。
-- [ ] BLE未接続時には送信パルスが発生しないことを確認する。
-- [ ] 時刻rollover付近でもLEDが消灯する差分判定にする。
-- [ ] `DEBUG_LOG = false`でもLEDが動作することを確認する。
-- [ ] このstepを独立したcommitにする。
+- [x] BLE未接続時には送信パルスが発生しないことを確認する。
+- [x] 時刻rollover付近でもLEDが消灯する差分判定にする。
+- [x] `DEBUG_LOG = false`でもLEDが動作することを確認する。
+- [x] このstepを独立したcommitにする。
 
 ### Step 5: 旧cadence appを削除
 
