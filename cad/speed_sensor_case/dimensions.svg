@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="700" viewBox="0 0 1100 700">
+  <defs>
+    <marker id="arrow" markerWidth="8" markerHeight="8" refX="4" refY="4" orient="auto-start-reverse">
+      <path d="M0,0 L8,4 L0,8 z" fill="#34495e"/>
+    </marker>
+    <style>
+      .part { fill:#dceef7; stroke:#195a78; stroke-width:3; }
+      .cavity { fill:#dff0df; stroke:#287a38; stroke-width:2; stroke-dasharray:7 5; }
+      .mount { fill:#d7d7d7; stroke:#555; stroke-width:2; }
+      .dim { stroke:#34495e; stroke-width:1.5; marker-start:url(#arrow); marker-end:url(#arrow); }
+      .guide { stroke:#8395a7; stroke-width:1; stroke-dasharray:4 4; }
+      .label { font: 20px sans-serif; fill:#203040; }
+      .small { font: 16px sans-serif; fill:#34495e; }
+      .title { font: bold 28px sans-serif; fill:#17384a; }
+    </style>
+  </defs>
+  <rect width="1100" height="700" fill="#fafafa"/>
+  <text x="45" y="45" class="title">Pico 2 W スピードセンサケース：初号寸法案</text>
+
+  <!-- Top view, scale 7 px/mm -->
+  <text x="70" y="95" class="label">上面（ケース本体）</text>
+  <rect x="70" y="125" width="442" height="188" rx="28" class="part"/>
+  <rect x="106" y="142" width="364" height="154" rx="14" class="cavity"/>
+  <circle cx="88" cy="219" r="10" fill="none" stroke="#555" stroke-width="2"/>
+  <circle cx="494" cy="219" r="10" fill="none" stroke="#555" stroke-width="2"/>
+  <text x="178" y="215" class="small">実装品 51 × 21 mm</text>
+  <text x="176" y="241" class="small">内部 52 × 22 mm</text>
+  <line x1="70" y1="335" x2="512" y2="335" class="dim"/>
+  <line x1="70" y1="313" x2="70" y2="350" class="guide"/>
+  <line x1="512" y1="313" x2="512" y2="350" class="guide"/>
+  <text x="254" y="363" class="small">約63.0 mm</text>
+  <line x1="535" y1="125" x2="535" y2="313" class="dim"/>
+  <text x="548" y="225" class="small">26.8 mm</text>
+
+  <!-- Side view -->
+  <text x="650" y="95" class="label">側面断面</text>
+  <rect x="650" y="140" width="365" height="17" rx="6" fill="#8fc6df" stroke="#195a78" stroke-width="2"/>
+  <rect x="670" y="157" width="325" height="153" class="part"/>
+  <rect x="705" y="177" width="255" height="120" class="cavity"/>
+  <path d="M710 310 L955 310 L938 360 Q833 405 727 360 Z" class="mount"/>
+  <path d="M735 360 Q833 398 930 360" fill="none" stroke="#a33" stroke-width="5"/>
+  <text x="760" y="230" class="small">高さ19 mmの実装品</text>
+  <text x="760" y="405" class="small">ハブ径 初期値32 mm</text>
+  <line x1="1030" y1="140" x2="1030" y2="310" class="dim"/>
+  <text x="960" y="225" class="small">約27 mm</text>
+
+  <!-- Saddle top view -->
+  <text x="70" y="430" class="label">交換式ハブサドル（Ksyrium前輪向け仮寸法）</text>
+  <rect x="70" y="460" width="266" height="238" rx="22" class="mount" transform="translate(0,-20)"/>
+  <rect x="157" y="460" width="32" height="22" fill="#fff" stroke="#555" stroke-width="2"/>
+  <rect x="157" y="616" width="32" height="22" fill="#fff" stroke="#555" stroke-width="2"/>
+  <rect x="231" y="460" width="32" height="22" fill="#fff" stroke="#555" stroke-width="2"/>
+  <rect x="231" y="616" width="32" height="22" fill="#fff" stroke="#555" stroke-width="2"/>
+  <circle cx="160" cy="550" r="12" fill="#fff" stroke="#555" stroke-width="2"/>
+  <circle cx="246" cy="550" r="12" fill="#fff" stroke="#555" stroke-width="2"/>
+  <text x="105" y="580" class="small">結束バンド穴 × 4</text>
+  <text x="105" y="606" class="small">M3固定 × 2</text>
+
+  <text x="400" y="470" class="label">設計の要点</text>
+  <text x="400" y="510" class="small">• 前輪の左右対称ハブ中央へ取り付ける</text>
+  <text x="400" y="545" class="small">• サドル長38 mm、ハブ径32 mmは仮値</text>
+  <text x="400" y="580" class="small">• サドルとハブの間に1〜1.5 mmゴムを貼る</text>
+  <text x="400" y="615" class="small">• 結束バンド2本で固定する</text>
+  <text x="400" y="650" class="small">• ケース端とラジアルスポークの干渉を確認する</text>
+</svg>
