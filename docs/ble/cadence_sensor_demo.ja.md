@@ -1,6 +1,6 @@
 # 専用ケイデンスセンサの確認手順
 
-最終更新: 2026-07-13 JST
+最終更新: 2026-07-14 JST
 
 ## 目的
 
@@ -157,6 +157,7 @@ lib/ble_cycle_host/multi_uart_central.rb          -> /lib/ble_cycle_host/multi_u
 lib/ble_cycle_host/speed_estimator.rb             -> /lib/ble_cycle_host/speed_estimator.mrb
 lib/ble_cycle_host/cadence_estimator.rb           -> /lib/ble_cycle_host/cadence_estimator.mrb
 lib/ble_cycle_host/display_output.rb              -> /lib/ble_cycle_host/display_output.mrb
+lib/ble_cycle_host/csv_logger.rb                  -> /lib/ble_cycle_host/csv_logger.mrb
 ```
 
 実機addressをhost app先頭へ設定する。
@@ -187,6 +188,41 @@ picoruby-gc9a01-speedometer.patch       # 2画面hostだけ
 
 GC9A01なしhostでは最後のpatchとGC9A01 mrbgemを含めない。Sensor build treeには
 どのhost patchも適用しない。
+
+## CSVログ
+
+Host appは起動時に`/home/logs`を確認し、存在しなければ作成する。ログファイルは
+`0000.csv`から始まり、既存の数字だけからなる`*.csv`の最大番号に1を加えた名前を使う。
+
+```text
+/home/logs/0000.csv
+/home/logs/0001.csv
+```
+
+Fileはapp起動時に作成される。Speedまたはcadenceのどちらかがreadyになると記録を開始し、
+1秒ごとに、その時点で各estimatorが保持している最新値を書く。250 msごとのsensor packetを
+すべて記録するのではない。切断またはtimeoutしたsensorの値は0になる。
+
+```csv
+timestamp,speed_kmh,cadence_rpm
+2026-07-14 10:00:00 +0900,12.35,89.01
+2026-07-14 10:00:01 +0900,12.48,90.22
+```
+
+起動時のserial logに、今回作成したpathが出る。
+
+```text
+log_file
+/home/logs/0000.csv
+```
+
+TimestampはPicoRubyの`Time.now.to_s`である。起動前にR2P2 shellの`date`で時刻を確認する。
+時計が未設定なら1970年付近などの誤った時刻になるため、Wi-Fiが利用できる場合は`ntpdate`で
+時刻を設定してからhost appを起動する。TimezoneはR2P2環境の`TZ`設定に従う。
+
+各rowはLittleFSへ`fsync`する。長時間試験ではCSVが1秒間隔で増えることに加え、BLEの
+`reader_gap_count`や表示更新へ悪影響がないことも確認する。書き込みに失敗した場合は
+`log_error`をserialへ出してCSV記録だけを停止し、BLE受信とmeter表示は継続する。
 
 ## 期待するhostログ
 
